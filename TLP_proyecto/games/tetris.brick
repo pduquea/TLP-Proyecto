@@ -15,6 +15,7 @@ DEFINE SHAPE I_PIECE:
     [1, 1, 1, 1]
     [0, 0, 0, 0]
     [0, 0, 0, 0]
+  COLOR: f5eb27
 END
 
 DEFINE SHAPE L_PIECE:
@@ -33,7 +34,24 @@ DEFINE SHAPE L_PIECE:
   STATE 4:
     [0, 0, 0]
     [1, 1, 1]
+    [0, 0, 1]
+  STATE 5:
+    [0, 1, 1]
+    [0, 1, 0]
+    [0, 1, 0]
+  STATE 6:
+    [1, 1, 0]
+    [0, 1, 0]
+    [0, 1, 0]
+  STATE 7:
     [1, 0, 0]
+    [1, 1, 1]
+    [0, 0, 0]
+  STATE 8:
+    [0, 0, 0]
+    [1, 1, 1]
+    [1, 0, 0]
+  COLOR:7dd781
 END
 
 DEFINE SHAPE T_PIECE:
@@ -53,6 +71,55 @@ DEFINE SHAPE T_PIECE:
     [0, 1, 0]
     [1, 1, 0]
     [0, 1, 0]
+  COLOR: 6f5acd
+END
+
+DEFINE SHAPE S_PIECE:
+  STATE 1:
+    [0, 1, 1]
+    [1, 1, 0]
+    [0, 0, 0]
+  STATE 2:
+    [1, 0, 0]
+    [1, 1, 0]
+    [0, 1, 0]
+  STATE 3:
+    [0, 0, 0]
+    [0, 1, 1]
+    [1, 1, 0]
+  STATE 4:
+    [0, 1, 0]
+    [0, 1, 1]
+    [0, 0, 1]
+  COLOR: c961e4
+END
+
+DEFINE SHAPE C_PIECE:
+  STATE 1:
+    [1, 1, 1]
+    [1, 0, 1]
+    [0, 0, 0]
+  STATE 2:
+    [1, 1, 0]
+    [1, 0, 0]
+    [1, 1, 0]
+  STATE 3:
+    [0, 1, 1]
+    [0, 0, 1]
+    [0, 1, 1]
+  STATE 4:
+    [0, 0, 0]
+    [1, 0, 1]
+    [1, 1, 1]
+  COLOR: dd9583
+END
+
+DEFINE SHAPE PLUS_PIECE:
+  STATE 1:
+    [0, 1, 0]
+    [1, 1, 1]
+    [0, 1, 0]
+  COLOR: ff3c00
 END
 
 # --- Logica y Reglas ---
@@ -67,7 +134,7 @@ END
 
 ON LINE_CLEAR:
   INCREASE_SCORE 100
-END
+END 
 
 # --- Controles ---
 ON KEY_LEFT:

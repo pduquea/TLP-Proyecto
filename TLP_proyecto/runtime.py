@@ -6,8 +6,8 @@ import json
 import time
 import random
 # Tkinter es la libreria GUI estandar de Python, compatible con 2.7
-import tkinter as tk
-import tkinter.messagebox as tkMessageBox # Necesario para el GAME OVER
+import Tkinter as tk
+import tkMessageBox # Necesario para el GAME OVER
 # Quitamos os y msvcrt ya que la GUI maneja el dibujo y el input
 # import os
 # import msvcrt 
@@ -53,6 +53,7 @@ class Juego:
         
         if self.tipo_juego == 'TETRIS':
             self.pieza_actual = None
+            self.color_pieza_actual = None
             self.pieza_x, self.pieza_y, self.pieza_rotacion = 0, 0, 0
             self.velocidad_gravedad = 0.4
         
@@ -121,7 +122,7 @@ class Juego:
         
         # Colores
         COLOR_GRID_FIJA = '#343434' # Gris oscuro para las celdas fijadas (Tetris)
-        COLOR_PIEZA = '#00FFFF'     # Cyan para la pieza activa (Tetris)
+        COLOR_PIEZA = self.color_pieza_actual if self.color_pieza_actual else '#00FFFF' # Color de la pieza desde el .brick
         COLOR_SNAKE_CABEZA = '#00FF00' # Verde brillante
         COLOR_SNAKE_CUERPO = '#33CC33' # Verde normal
         COLOR_FOOD = '#FF0000'      # Rojo
@@ -171,6 +172,7 @@ class Juego:
                     if verbo == 'SPAWN': self.tetris_spawn_pieza()
                     if verbo == 'MOVE': self.tetris_mover_pieza(accion['params'][0])
                     if verbo == 'ROTATE': self.tetris_rotar_pieza()
+
                 
                 if self.tipo_juego == 'SNAKE':
                     if verbo == 'SPAWN' and objeto == 'PLAYER': self.snake_spawn_jugador(accion)
@@ -184,7 +186,9 @@ class Juego:
 
     def tetris_spawn_pieza(self):
         nombre_pieza = random.choice(self.datos_juego['shapes'].keys())
-        self.pieza_actual = self.datos_juego['shapes'][nombre_pieza]
+        datos_pieza = self.datos_juego['shapes'][nombre_pieza]
+        self.pieza_actual = datos_pieza['estados']
+        self.color_pieza_actual = '#' + datos_pieza['color']
         self.pieza_x, self.pieza_y, self.pieza_rotacion = self.ancho / 2 - 2, 0, 0
         if self.tetris_verificar_colision(self.pieza_x, self.pieza_y, self.pieza_rotacion):
             self.juego_terminado = True
@@ -215,6 +219,7 @@ class Juego:
                     if 0 <= self.pieza_y + y_offset < self.alto and 0 <= self.pieza_x + x_offset < self.ancho:
                         self.grid[self.pieza_y + y_offset][self.pieza_x + x_offset] = 1
         self.pieza_actual = None
+        self.color_pieza_actual = None
         self.tetris_limpiar_lineas()
         self.ejecutar_evento('ON_START')
 
@@ -294,14 +299,14 @@ class Juego:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print ("Uso: python runtime.py <archivo_juego.json>")
+        print "Uso: python runtime.py <archivo_juego.json>"
         sys.exit(1)
     archivo_juego = sys.argv[1]
     try:
         with open(archivo_juego, 'r') as f:
             datos_juego = json.load(f)
     except IOError:
-        print ("Error: No se pudo encontrar el archivo " + archivo_juego)
+        print "Error: No se pudo encontrar el archivo " + archivo_juego
         sys.exit(1)
     juego = Juego(datos_juego)
     juego.run()

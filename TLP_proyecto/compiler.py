@@ -1,14 +1,15 @@
 # compiler.py
 # Compilador universal para BrickScript (Version Final y Depurada)
 # Uso: python compiler.py <archivo_entrada.brick>
-
+# Hola sara como estas :D
 import sys
 import re
 import json
 
 def lexer(codigo_fuente):
-    codigo_fuente = re.sub(r'#.*', '', codigo_fuente)
-    token_regex = r'\b[A-Z_]+\b|\d+|[\[\](),:]'
+    # Elimina solo los comentarios completos de linea, sin borrar los valores de color como #FF5733
+    codigo_fuente = re.sub(r'(?m)^\s*#.*$', '', codigo_fuente)
+    token_regex = r'\b[A-Z_]+\b|\d+|#(?:[0-9A-Fa-f]{6})|[\[\](),:]'
     tokens = re.findall(token_regex, codigo_fuente)
     return tokens
 
@@ -57,7 +58,7 @@ class Parser:
         self.consumir(')')
         self.ast['config']['grid_size'] = [ancho, alto]
 
-    def parsear_shape(self):
+    def parsear_shape(self): #modificar color 
         self.consumir('DEFINE')
         self.consumir('SHAPE')
         nombre_shape = self.consumir()
@@ -77,8 +78,19 @@ class Parser:
                 self.consumir(']')
                 matriz.append(fila)
             estados.append(matriz)
+
+        color = None
+        chance = 1
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE']:
+            propiedad = self.consumir()
+            self.consumir(':')
+            if propiedad == 'COLOR':
+                color = self.consumir()
+            elif propiedad == 'CHANCE':
+                chance = int(self.consumir())
+
         self.consumir('END')
-        self.ast['shapes'][nombre_shape] = estados
+        self.ast['shapes'][nombre_shape] = {'estados': estados, 'color': color, 'chance': chance}
 
     # --- FUNCION CORREGIDA ---
     def parsear_evento(self):
