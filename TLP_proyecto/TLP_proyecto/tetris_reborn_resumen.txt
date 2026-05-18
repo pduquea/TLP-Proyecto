@@ -1,0 +1,66 @@
+TETRIS REBORN - CAMBIOS REALIZADOS 
+
+QUÉ SE HIZO
+
+Agregamos colores dinámicos, probabilidades personalizadas (CHANCE) y un sistema
+de power-ups al motor de Tetris BrickScript.
+
+TODO FUNCIONA SIN NUMPY, solo Python base.
+
+
+CAMBIOS POR ARCHIVO
+
+1. tetris.bnf (Sara - Gramática)
+   - Agregamos reglas para: COLOR, CHANCE, POWERUP
+   - Ahora la gramática soporta colores hex (#RRGGBB)
+   - Piezas pueden tener probabilidad de aparición
+
+2. compiler.py (Pedro - Compilador)
+   - Línea 8: Regex actualizado para reconocer colores hex
+   - Línea 22-30: Parser ahora diferencia SHAPE de POWERUP
+   - Línea 83-90: Lee COLOR y CHANCE de cada pieza
+   - Línea 95-128: Nuevo método parsear_powerup()
+   
+   ¿Qué hace? Convierte tetris.brick a tetris.json con todos los atributos.
+
+3. runtime.py (Simon + Estefania - Motor)
+   
+   SIMON (Dinámico):
+   - Línea 51: Lista powerups_activos
+   - Línea 126-128: Dibuja powerups en pantalla
+   - Línea 174-188: Selección ponderada de piezas (sin numpy)
+   - Línea 192-197: Lee colores dinámicos del JSON
+   
+   ESTEFANIA (Power-ups):
+   - Línea 218: Cuenta rotaciones
+   - Línea 230-233: Detecta colisión pieza-powerup, suma +50 puntos
+   - Línea 260: Condición de spawn (3 líneas borrada + 10 rotaciones)
+   - Línea 264-280: Método que genera powerups aleatorios
+
+4. tetris.brick (Sara - Contenido)
+   - 3 piezas nuevas: O_PIECE, Z_PIECE, P_PIECE
+   - 1 powerup: BONUS_STAR (1x1 dorado)
+   - Todas tienen COLOR y CHANCE definidos
+
+
+CÓMO FUNCIONA
+
+Selección ponderada sin numpy:
+  1. Leemos CHANCE de cada pieza (ejemplo: Z=3, O=2)
+  2. Creamos lista: [Z, Z, Z, O, O, ...otros...]
+  3. random.choice() de esa lista
+  
+  Resultado: Piezas con CHANCE mayor salen más veces
+
+Colores dinámicos:
+  1. Definimos en .brick: "COLOR: #ff6b6b"
+  2. Compilador guarda en JSON
+  3. Runtime lee y pinta con ese color en canvas
+
+Power-ups:
+  1. Se spawnean cuando: lineas_limpias >= 3 AND rotaciones >= 10
+  2. Aparecen en posición aleatoria vacía
+  3. Si una pieza los toca: +50 puntos y desaparecen
+  4. Color dinámico del JSON
+
+
