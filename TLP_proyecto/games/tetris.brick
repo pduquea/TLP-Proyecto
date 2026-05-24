@@ -15,7 +15,8 @@ DEFINE SHAPE I_PIECE:
     [1, 1, 1, 1]
     [0, 0, 0, 0]
     [0, 0, 0, 0]
-  COLOR: f5eb27
+  COLOR: #f5eb27
+  CHANCE: 2
 END
 
 DEFINE SHAPE L_PIECE:
@@ -51,8 +52,9 @@ DEFINE SHAPE L_PIECE:
     [0, 0, 0]
     [1, 1, 1]
     [1, 0, 0]
-  COLOR:7dd781
-END
+  COLOR: #7dd781
+  CHANCE: 3
+END 
 
 DEFINE SHAPE T_PIECE:
   STATE 1:
@@ -71,55 +73,54 @@ DEFINE SHAPE T_PIECE:
     [0, 1, 0]
     [1, 1, 0]
     [0, 1, 0]
-  COLOR: 6f5acd
+  COLOR: #6f5acd
+  CHANCE: 2
 END
 
-DEFINE SHAPE S_PIECE:
+DEFINE SHAPE O_PIECE:
   STATE 1:
-    [0, 1, 1]
+    [1, 1]
+    [1, 1]
+  COLOR: #ffeb3b
+  CHANCE: 3
+END
+
+DEFINE SHAPE Z_PIECE:
+  STATE 1:
     [1, 1, 0]
+    [0, 1, 1]
     [0, 0, 0]
   STATE 2:
-    [1, 0, 0]
-    [1, 1, 0]
+    [0, 0, 1]
+    [0, 1, 1]
     [0, 1, 0]
   STATE 3:
     [0, 0, 0]
-    [0, 1, 1]
     [1, 1, 0]
+    [0, 1, 1]
   STATE 4:
     [0, 1, 0]
-    [0, 1, 1]
-    [0, 0, 1]
-  COLOR: c961e4
-END
-
-DEFINE SHAPE C_PIECE:
-  STATE 1:
-    [1, 1, 1]
-    [1, 0, 1]
-    [0, 0, 0]
-  STATE 2:
     [1, 1, 0]
     [1, 0, 0]
-    [1, 1, 0]
-  STATE 3:
-    [0, 1, 1]
-    [0, 0, 1]
-    [0, 1, 1]
-  STATE 4:
-    [0, 0, 0]
-    [1, 0, 1]
-    [1, 1, 1]
-  COLOR: dd9583
+  COLOR: #ff6b6b
+  CHANCE: 2
 END
 
-DEFINE SHAPE PLUS_PIECE:
+DEFINE SHAPE P_PIECE:
   STATE 1:
     [0, 1, 0]
     [1, 1, 1]
     [0, 1, 0]
-  COLOR: ff3c00
+
+  COLOR: #4ecdc4
+  CHANCE: 3
+END
+
+# --- POWERUP: Una pieza especial 1x1 que da bonus ---
+DEFINE POWERUP BONUS_STAR:
+  STATE 1:
+    [1]
+  COLOR: #ffd700
 END
 
 # --- Logica y Reglas ---

@@ -1,7 +1,3 @@
-# compiler.py
-# Compilador universal para BrickScript (Version Final y Depurada)
-# Uso: python compiler.py <archivo_entrada.brick>
-# Hola sara como estas :D
 import sys
 import re
 import json
@@ -17,7 +13,7 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.posicion = 0
-        self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}}
+        self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}, "powerups": {}, "levels": {}}
 
     def parse(self):
         while self.posicion < len(self.tokens):
@@ -27,9 +23,19 @@ class Parser:
             elif token_actual == 'GAME_GRID':
                 self.parsear_grid()
             elif token_actual == 'DEFINE':
-                self.parsear_shape()
+                self.consumir('DEFINE')
+                tipo_elemento = self.consumir()
+                if tipo_elemento == 'SHAPE':
+                    self.parsear_shape()
+                elif tipo_elemento == 'POWERUP':
+                    self.parsear_powerup()
+                elif tipo_elemento == 'LEVELS':
+                    # backward compatibility: allow DEFINE LEVELS ... END (rare)
+                    self.parsear_levels()
             elif token_actual == 'ON':
                 self.parsear_evento()
+            elif token_actual == 'LEVELS':
+                self.parsear_levels()
             else:
                 self.posicion += 1
         return self.ast
@@ -58,9 +64,7 @@ class Parser:
         self.consumir(')')
         self.ast['config']['grid_size'] = [ancho, alto]
 
-    def parsear_shape(self): #modificar color 
-        self.consumir('DEFINE')
-        self.consumir('SHAPE')
+    def parsear_shape(self):
         nombre_shape = self.consumir()
         self.consumir(':')
         estados = []
@@ -74,25 +78,101 @@ class Parser:
                 self.consumir('[')
                 while self.tokens[self.posicion] != ']':
                     fila.append(int(self.consumir()))
-                    if self.tokens[self.posicion] == ',': self.consumir(',')
+                    if self.posicion < len(self.tokens) and self.tokens[self.posicion] == ',': 
+                        self.consumir(',')
                 self.consumir(']')
                 matriz.append(fila)
             estados.append(matriz)
 
+        # propiedades adicionales: COLOR, CHANCE, TYPE
         color = None
         chance = 1
-        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE']:
+        shape_type = 'RECT'
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'TYPE']:
             propiedad = self.consumir()
             self.consumir(':')
             if propiedad == 'COLOR':
                 color = self.consumir()
             elif propiedad == 'CHANCE':
                 chance = int(self.consumir())
+            elif propiedad == 'TYPE':
+                shape_type = self.consumir()
 
         self.consumir('END')
-        self.ast['shapes'][nombre_shape] = {'estados': estados, 'color': color, 'chance': chance}
+        self.ast['shapes'][nombre_shape] = {'estados': estados, 'color': color, 'chance': chance, 'type': shape_type}
 
-    # --- FUNCION CORREGIDA ---
+    def parsear_powerup(self):
+        nombre_powerup = self.consumir()
+        self.consumir(':')
+        estados = []
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'STATE':
+            self.consumir('STATE')
+            self.consumir()
+            self.consumir(':')
+            matriz = []
+            while self.posicion < len(self.tokens) and self.tokens[self.posicion] == '[':
+                fila = []
+                self.consumir('[')
+                while self.tokens[self.posicion] != ']':
+                    fila.append(int(self.consumir()))
+                    if self.posicion < len(self.tokens) and self.tokens[self.posicion] == ',': 
+                        self.consumir(',')
+                self.consumir(']')
+                matriz.append(fila)
+            estados.append(matriz)
+
+        color = None
+        chance = 1
+        duration = None
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'DURATION']:
+            propiedad = self.consumir()
+            self.consumir(':')
+            if propiedad == 'COLOR':
+                color = self.consumir()
+            elif propiedad == 'CHANCE':
+                chance = int(self.consumir())
+            elif propiedad == 'DURATION':
+                duration = int(self.consumir())
+
+        self.consumir('END')
+        if 'powerups' not in self.ast:
+            self.ast['powerups'] = {}
+        self.ast['powerups'][nombre_powerup] = {'estados': estados, 'color': color, 'chance': chance, 'duration': duration}
+
+    def parsear_levels(self):
+        # Parse LEVELS block: LEVEL <NAME> : <props> END ... END
+        self.consumir('LEVELS')
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] != 'END':
+            if self.tokens[self.posicion] == 'LEVEL':
+                self.consumir('LEVEL')
+                nombre = self.consumir()
+                self.consumir(':')
+                props = {}
+                while self.posicion < len(self.tokens) and self.tokens[self.posicion] not in ['END', 'LEVEL']:
+                    key = self.consumir()
+                    # Accept values or ON/OFF
+                    if self.tokens[self.posicion] == ':':
+                        self.consumir(':')
+                    val = self.consumir()
+                    # allow lists of colors separated by commas
+                    if val and ',' in val:
+                        props[key] = [v.strip() for v in val.split(',')]
+                    else:
+                        # try to numeric
+                        try:
+                            props[key] = int(val)
+                        except:
+                            props[key] = val
+                # consume optional END after level
+                if self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'END':
+                    self.consumir('END')
+                self.ast['levels'][nombre] = props
+            else:
+                self.posicion += 1
+        # final END
+        if self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'END':
+            self.consumir('END')
+
     def parsear_evento(self):
         self.consumir('ON')
         nombre_evento = 'ON_' + self.consumir()
@@ -100,13 +180,11 @@ class Parser:
         acciones = []
         while self.posicion < len(self.tokens) and self.tokens[self.posicion] != 'END':
             verbo = self.consumir()
-            
-            # Si el comando es de una sola palabra, lo anadimos y continuamos
+           
             if verbo == 'GAME_OVER':
                 acciones.append({'accion': verbo, 'objeto': None, 'params': []})
                 continue
             
-            # Si no, parseamos el resto de la accion
             objeto = self.consumir()
             params = []
             if self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'AT':

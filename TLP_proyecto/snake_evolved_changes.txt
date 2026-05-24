@@ -1,0 +1,49 @@
+Informe de cambios - snake_evolved
+
+Resumen:
+Se añadieron niveles, frutas venenosas, nubes-obstáculo, power-up de invulnerabilidad, y soporte para formas circulares y triangulares en segmentos de la serpiente. Se mantuvo retrocompatibilidad: si no hay bloque LEVELS se usa 'BABY' por defecto.
+
+Archivos modificados:
+- compiler.py: añadir parseo de propiedades TYPE en SHAPE, DURATION en POWERUP y bloque LEVELS.
+  Cambios principales en funciones: Parser.__init__, Parser.parse, parsear_shape, parsear_powerup, parsear_levels.
+  (Ver implementacion en [compiler.py](compiler.py)).
+
+- runtime.py: añadir manejo de niveles y comportamiento multinivel para SNAKE, implementacion de:
+  - listas de alimentos y nubes: `self.food_items`, `self.clouds`
+  - power-up invulnerabilidad: `self.invulnerable`, `self.invuln_end_time`
+  - dibujo de segmentos CIRCULAR/TRIANGULAR y cabeza especial Nyan Cat
+  - lógica al comer frutas venenosas y collision con nubes
+  Cambios principales en funciones: __init__, game_loop, dibujar, dibujar_segmento, ejecutar_evento, snake_spawn_jugador, snake_spawn_comida, snake_mover_jugador, snake_crecer.
+  (Ver implementacion en [runtime.py](runtime.py)).
+
+- gramaticas bnf/snake.bnf: ampliada para LEVELS, POWERUP DURATION y spawn de POISON_FRUIT.
+  (Ver [gramaticas bnf/snake.bnf](gramaticas bnf/snake.bnf)).
+
+- Added files: snake_evolved.brick (ejemplo), snake_evolved.bnf, snake_evolved_changes.txt (este archivo).
+
+Lineas clave modificadas (apróx., para revisar):
+- compiler.py:
+  - parsear_shape: alrededor de la linea 60-90
+  - parsear_powerup: alrededor de la linea 110-150
+  - parsear_levels: alrededor de la linea 140-190
+- runtime.py:
+  - __init__: añadidos niveles y opciones (lineas ~20-70)
+  - game_loop: chequeo invulnerabilidad (lineas ~80-100)
+  - dibujar y dibujar_segmento: nueva lógica de dibujo (lineas ~110-170)
+  - ejecutar_evento: mapping SPAWN para POISON/POWERUP (lineas ~180-220)
+  - snake_spawn_comida, snake_mover_jugador, snake_crecer: lógica new (lineas ~260-360)
+
+Reparto de la actividad (4 integrantes):
+- Sara: Diseño de la gramática y parser (editar `compiler.py` y `snake.bnf`). Líneas/archivos: Parser.parsear_levels, parsear_powerup, snake.bnf.
+- Pedro: Implementación de dibujo y formas (círculo/triángulo) en `runtime.py` y crear `snake_evolved.brick` de ejemplo.
+- Estefania: Lógica de alimentos, frutas venenosas y nubes; adaptar `snake_spawn_comida` y `snake_mover_jugador` (`runtime.py`).
+- Simon: Power-up de invulnerabilidad y control de tiempos; integración de niveles y ajuste de `velocidad_gravedad` por nivel (`runtime.py`).
+
+Notas de implementación (sencillas):
+- Power-up: el archivo `.brick` declara `DEFINE POWERUP INVULN: DURATION: 5 END`. Al comerlo se activa `self.invulnerable` durante `duration` segundos (se usa `time.time()` para temporizar).
+- Nubes: son posiciones fijas en `self.clouds`; si la cabeza choca se borran todos los puntos y si el jugador no tiene puntos el juego termina.
+- Cola Nyan Cat: si el nivel es `NYAN_CAT` la cabeza se dibuja circular y la cola usa `TAIL_COLORS` del nivel (lista de hex colors). Se aplica color por índice modulo longitud de la lista.
+
+Por favor revisen el código en los archivos mencionados y si quieren que distribuya los cambios en commits o genere el zip `snake_evolved.zip` lo hago a continuación.
+
+Fin del informe.

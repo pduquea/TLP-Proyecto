@@ -13,7 +13,7 @@
 <valores_fila>     ::= <numero> | <numero> "," <valores_fila>
 
 <evento>         ::= "ON" <nombre_evento_snake> ":" <acciones_snake> "END"
-<nombre_evento_snake> ::= "START" | "TICK" | "EAT_FOOD" | "COLLISION_WALL" | "COLLISION_SELF" | "KEY_UP" | "KEY_DOWN" | "KEY_LEFT" | "KEY_RIGHT"
+<nombre_evento_snake> ::= "START" | "TICK" | "EAT_FOOD" | "EAT_POISON" | "COLLISION_WALL" | "COLLISION_SELF" | "KEY_UP" | "KEY_DOWN" | "KEY_LEFT" | "KEY_RIGHT"
 <acciones_snake>     ::= <accion_snake> | <accion_snake> <acciones_snake>
 
 <accion_snake> ::= <accion_spawn_jugador> | <accion_spawn_comida> | <accion_mover> | <accion_direccion> | <accion_puntos> | <accion_crecer> | <accion_gameover>
@@ -32,14 +32,13 @@
 <letra>         ::= "A"..."Z" | "_"
 <digito>        ::= "0"..."9"
 
-# Nuevas reglas para niveles y powerups
+# Niveles y powerups
 <niveles> ::= "LEVELS" <definicion_nivel> | "LEVELS" <definicion_nivel> <niveles>
 <definicion_nivel> ::= "LEVEL" <identificador> ":" <props_nivel> "END"
 <props_nivel> ::= <prop_nivel> | <prop_nivel> <props_nivel>
-<prop_nivel> ::= "TICK_SPEED" <numero> | "POISON_FRUITS" ("ENABLE"|"DISABLE") | "CLOUDS" ("ENABLE"|"DISABLE") | "POWERUP_INVULN_DURATION" <numero> | "TAIL_COLORS" <color_list>
+<prop_nivel> ::= "TICK_SPEED" ":" <numero> | "POISON_FRUITS" ":" ("ENABLE"|"DISABLE") | "CLOUDS" ":" ("ENABLE"|"DISABLE") | "POWERUP_INVULN_DURATION" ":" <numero> | "TAIL_COLORS" ":" <color_list>
 <color_list> ::= <color> | <color> "," <color_list>
 <color> ::= "#" <digito> <digito> <digito> <digito> <digito> <digito>
 
-# Extensiones en DEFINE POWERUP
 <definicion_powerup> ::= "DEFINE" "POWERUP" <identificador> ":" <prop_powerup> "END"
 <prop_powerup> ::= "DURATION" ":" <numero> | "COLOR" ":" <color> | "CHANCE" ":" <numero>
