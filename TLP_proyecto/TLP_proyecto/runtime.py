@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-  # comentario: encoding añadido para soportar caracteres no-ASCII
+from __future__ import print_function  # comentario: compatibilidad print Py2/Py3
 import sys
 import json
 import time
@@ -5,6 +8,11 @@ import random
 import Tkinter as tk
 import tkMessageBox # Necesario para el GAME OVER
 # Quitamos os y msvcrt ya que la GUI maneja el dibujo y el input
+# Compatibilidad entre Python2/3 para comprobacion de strings
+try:
+    BSTRING = basestring
+except NameError:
+    BSTRING = str
  
 
 class Juego:
@@ -17,6 +25,12 @@ class Juego:
         self.grid = [[0 for _ in range(self.ancho)] for _ in range(self.alto)]
         self.puntuacion = 0
         self.juego_terminado = False
+        # comentario: inicializar atributos usados por dibujar() para compatibilidad
+        self.pieza_actual = None  # usada por TETRIS
+        self.color_pieza_actual = None  # usada por dibujar incluso si no es TETRIS
+        self.pieza_x = 0
+        self.pieza_y = 0
+        self.pieza_rotacion = 0
         
         # Configuracion de la GUI
         self.root = tk.Tk()
@@ -57,6 +71,73 @@ class Juego:
             self.serpiente_direccion = (1, 0)
             self.posicion_comida = None
             self.velocidad_gravedad = 0.15
+            # Detectar forma de segmento desde DEFINE SHAPE / shapes en el archivo de juego
+            self.snake_shape = None
+            shapes_def = self.datos_juego.get('shapes', {})
+            # Prefer explicit 'type' declared in shapes definitions
+            for s in shapes_def.values():
+                if isinstance(s, dict) and s.get('type'):
+                    self.snake_shape = s.get('type')
+                    break
+            # Backwards-compatible heuristics if no explicit TYPE provided
+            if not self.snake_shape:
+                # common shape names that indicate non-rect shapes
+                for name in ('BALL', 'PIXEL', 'TRI'):
+                    if name in shapes_def:
+                        entry = shapes_def[name]
+                        if isinstance(entry, dict) and entry.get('type'):
+                            self.snake_shape = entry.get('type')
+                            break
+                        else:
+                            # use the name as hint
+                            self.snake_shape = name
+                            break
+            # Normalizar a nombres simples y mapear sinónimos
+            if isinstance(self.snake_shape, BSTRING):
+                try:
+                    s = self.snake_shape.upper()
+                except Exception:
+                    s = None
+                if s in ('BALL', 'CIRCLE'):
+                    self.snake_shape = 'CIRCLE'
+                elif s in ('TRI', 'TRIANGLE'):
+                    self.snake_shape = 'TRI'
+                else:
+                    # keep rectangle/bitmap default as None (rectangles)
+                    if s in ('RECT', 'RECTANGLE', 'PIXEL', 'SQUARE'):
+                        self.snake_shape = None
+                    else:
+                        # unknown token -> leave as None for compatibility
+                        self.snake_shape = None
+            else:
+                self.snake_shape = None
+
+            # Nivel activo y colores de cola (para Nyan Cat)
+            start_level = config.get('start_level')
+            levels = self.datos_juego.get('levels', {})
+            if start_level and start_level in levels:
+                self.current_level = start_level
+                self.level_config = levels.get(start_level, {})
+            else:
+                # por compatibilidad, elegir primer nivel si existe
+                # preferir un nivel que tenga TAIL_COLORS (Nyan)
+                chosen = None
+                for k, v in levels.items():
+                    if isinstance(v, dict) and v.get('TAIL_COLORS'):
+                        chosen = k
+                        break
+                if not chosen:
+                    try:
+                        chosen = next(iter(levels)) if levels else None
+                    except Exception:
+                        chosen = None
+                self.current_level = chosen
+                self.level_config = levels.get(self.current_level, {}) if self.current_level else {}
+
+            self.tail_colors = []
+            if isinstance(self.level_config, dict):
+                self.tail_colors = self.level_config.get('TAIL_COLORS', [])
+            self.is_nyan_mode = bool(self.tail_colors)
         
         self.timer_gravedad = 0
         self.ejecutar_evento('ON_START')
@@ -141,14 +222,62 @@ class Juego:
                 self.dibujar_celda(x, y, COLOR_FOOD)
             for i, segmento in enumerate(self.serpiente_cuerpo):
                 x, y = segmento
-                color = COLOR_SNAKE_CABEZA if i == 0 else COLOR_SNAKE_CUERPO
-                self.dibujar_celda(x, y, color)
+                # Nyan mode: head circle with cat ears, tail rainbow
+                if self.is_nyan_mode:
+                    if i == 0:
+                        # cabeza como circulo (color verde cabeza)
+                        self.dibujar_celda(x, y, COLOR_SNAKE_CABEZA, shape='CIRCLE')
+                        # dibujar orejas simples (triangulos)
+                        ts = self.taman_celda
+                        x1, y1 = x * ts, y * ts
+                        x2, y2 = x1 + ts, y1 + ts
+                        # oreja izquierda
+                        lx1 = x1 + ts * 0.2
+                        lx2 = x1 + ts * 0.4
+                        points_l = [lx1, y1 + ts*0.25, lx2, y1, lx1 + ts*0.05, y1 + ts*0.05]
+                        # oreja derecha
+                        rx1 = x2 - ts * 0.2
+                        rx2 = x2 - ts * 0.4
+                        points_r = [rx1, y1 + ts*0.25, rx2, y1, rx1 - ts*0.05, y1 + ts*0.05]
+                        try:
+                            self.canvas.create_polygon(points_l, fill='#333333', outline='')
+                            self.canvas.create_polygon(points_r, fill='#333333', outline='')
+                        except Exception:
+                            pass
+                    else:
+                        if self.tail_colors:
+                            color = self.tail_colors[i % len(self.tail_colors)]
+                        else:
+                            color = COLOR_SNAKE_CUERPO
+                        # forma opcional desde DEFINE SHAPE
+                        # forma opcional desde DEFINE SHAPE (ya normalizada)
+                        shape = self.snake_shape
+                        if shape == 'CIRCLE':
+                            self.dibujar_celda(x, y, color, shape='CIRCLE')
+                        elif shape == 'TRI':
+                            self.dibujar_celda(x, y, color, shape='TRI')
+                        else:
+                            self.dibujar_celda(x, y, color)
+                else:
+                    color = COLOR_SNAKE_CABEZA if i == 0 else COLOR_SNAKE_CUERPO
+                    shape = self.snake_shape  # already 'CIRCLE', 'TRI' or None
+                    self.dibujar_celda(x, y, color, shape=shape)
 
-    def dibujar_celda(self, x, y, color):
+    def dibujar_celda(self, x, y, color, shape=None):
         ts = self.taman_celda 
         x1, y1 = x * ts, y * ts
         x2, y2 = x1 + ts, y1 + ts
-        self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='#000000')
+        shape_type = None
+        if isinstance(shape, BSTRING):
+            shape_type = shape.upper()
+        if shape_type == 'CIRCLE' or shape_type == 'BALL':
+            self.canvas.create_oval(x1, y1, x2, y2, fill=color, outline='#000000')
+        elif shape_type == 'TRI' or shape_type == 'TRIANGLE':
+            cx = (x1 + x2) / 2
+            points = [cx, y1, x2, y2, x1, y2]
+            self.canvas.create_polygon(points, fill=color, outline='#000000')
+        else:
+            self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='#000000')
 
 
     def ejecutar_evento(self, nombre_evento):
@@ -336,14 +465,14 @@ class Juego:
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print "Uso: python runtime.py <archivo_juego.json>"
+        print("Uso: python runtime.py <archivo_juego.json>")  # comentario: reemplazado por print() para Py3
         sys.exit(1)
     archivo_juego = sys.argv[1]
     try:
         with open(archivo_juego, 'r') as f:
             datos_juego = json.load(f)
     except IOError:
-        print "Error: No se pudo encontrar el archivo " + archivo_juego
+        print("Error: No se pudo encontrar el archivo " + archivo_juego)  # comentario: print() Py3
         sys.exit(1)
     juego = Juego(datos_juego)
     juego.run()

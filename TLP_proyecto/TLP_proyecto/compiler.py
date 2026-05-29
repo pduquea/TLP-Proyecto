@@ -1,3 +1,4 @@
+from __future__ import print_function  # comentario: compatibilidad print Py2/Py3
 import sys
 import re
 import json
@@ -13,7 +14,8 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.posicion = 0
-        self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}}
+        # Added 'levels' key to AST to support level-specific settings (e.g., TAIL_COLORS)
+        self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}, "levels": {}}
 
     def parse(self):
         while self.posicion < len(self.tokens):
@@ -29,6 +31,9 @@ class Parser:
                     self.parsear_shape()
                 elif tipo_elemento == 'POWERUP':
                     self.parsear_powerup()
+                elif tipo_elemento == 'LEVEL':
+                    # New: parse level definitions (used for Nyan tail colors, etc.)
+                    self.parsear_level()
             elif token_actual == 'ON':
                 self.parsear_evento()
             else:
@@ -81,16 +86,19 @@ class Parser:
 
         color = None
         chance = 1
-        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE']:
+        shape_type = None
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'TYPE']:
             propiedad = self.consumir()
             self.consumir(':')
             if propiedad == 'COLOR':
                 color = self.consumir()
             elif propiedad == 'CHANCE':
                 chance = int(self.consumir())
+            elif propiedad == 'TYPE':
+                shape_type = self.consumir()
 
         self.consumir('END')
-        self.ast['shapes'][nombre_shape] = {'estados': estados, 'color': color, 'chance': chance}
+        self.ast['shapes'][nombre_shape] = {'estados': estados, 'color': color, 'chance': chance, 'type': shape_type}
 
     def parsear_powerup(self):
         nombre_powerup = self.consumir()
@@ -114,18 +122,49 @@ class Parser:
 
         color = None
         chance = 1
-        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE']:
+        powerup_type = None
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'TYPE']:
             propiedad = self.consumir()
             self.consumir(':')
             if propiedad == 'COLOR':
                 color = self.consumir()
             elif propiedad == 'CHANCE':
                 chance = int(self.consumir())
+            elif propiedad == 'TYPE':
+                powerup_type = self.consumir()
 
         self.consumir('END')
         if 'powerups' not in self.ast:
             self.ast['powerups'] = {}
-        self.ast['powerups'][nombre_powerup] = {'estados': estados, 'color': color, 'chance': chance}
+        self.ast['powerups'][nombre_powerup] = {'estados': estados, 'color': color, 'chance': chance, 'type': powerup_type}
+
+    def parsear_level(self):
+        # Parse a level block: DEFINE LEVEL <name>: [properties] END
+        # Supported property: TAIL_COLORS: [#RRGGBB, #RRGGBB, ...]
+        nombre_nivel = self.consumir()
+        self.consumir(':')
+        nivel = {}
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] != 'END':
+            prop = self.consumir()
+            self.consumir(':')
+            if prop == 'TAIL_COLORS':
+                # expect list: [ #xxxx , #yyyy ]
+                colors = []
+                self.consumir('[')
+                while self.posicion < len(self.tokens) and self.tokens[self.posicion] != ']':
+                    token = self.consumir()
+                    # hex color tokens are matched by lexer like #RRGGBB
+                    colors.append(token)
+                    if self.posicion < len(self.tokens) and self.tokens[self.posicion] == ',':
+                        self.consumir(',')
+                self.consumir(']')
+                nivel['TAIL_COLORS'] = colors
+            else:
+                # Unknown property: attempt to read a single token value
+                val = self.consumir()
+                nivel[prop] = val
+        self.consumir('END')
+        self.ast['levels'][nombre_nivel] = nivel
 
     def parsear_evento(self):
         self.consumir('ON')
@@ -164,11 +203,11 @@ def generar_codigo(ast, archivo_salida):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print "Uso: python compiler.py <archivo_entrada.brick>"
+        print("Uso: python compiler.py <archivo_entrada.brick>")  # comentario: print() Py3
         sys.exit(1)
     archivo_entrada = sys.argv[1]
     archivo_salida = archivo_entrada.replace('.brick', '.json')
-    print "Compilando " + archivo_entrada + "..."
+    print("Compilando " + archivo_entrada + "...")  # comentario: print() Py3
     try:
         with open(archivo_entrada, 'r') as f:
             codigo = f.read()
@@ -176,8 +215,8 @@ if __name__ == "__main__":
         parser = Parser(tokens)
         ast = parser.parse()
         generar_codigo(ast, archivo_salida)
-        print "Compilacion exitosa! Archivo de juego creado en " + archivo_salida
+        print("Compilacion exitosa! Archivo de juego creado en " + archivo_salida)  # comentario: print() Py3
     except Exception as e:
-        print "\n!!! ERROR DE COMPILACION !!!"
-        print str(e)
+        print("\n!!! ERROR DE COMPILACION !!!")
+        print(str(e))
         sys.exit(1)

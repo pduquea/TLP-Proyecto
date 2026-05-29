@@ -5,7 +5,15 @@
 <definiciones> ::= <definicion_shape> | <definicion_shape> <definiciones>
 <eventos>    ::= <evento> | <evento> <eventos>
 
-<definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <estados> "END"
+<definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <estados> <propiedades_shape> "END"
+<propiedades_shape> ::= <propiedad_shape> | <propiedad_shape> <propiedades_shape> | 
+<propiedad_shape> ::= "COLOR" ":" <hex> | "CHANCE" ":" <numero> | "TYPE" ":" <tipo_shape>
+
+<tipo_shape> ::= "CIRCLE" | "BALL" | "TRI" | "TRIANGLE" | "RECT" | "RECTANGLE" | "PIXEL"
+
+<hex> ::= "#" <hex_digitos>
+<hex_digitos> ::= <hex_digito> | <hex_digito> <hex_digitos>
+<hex_digito> ::= "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"|"A"|"B"|"C"|"D"|"E"|"F" | "a"|"b"|"c"|"d"|"e"|"f"
 <estados>          ::= <estado> | <estado> <estados>
 <estado>           ::= "STATE" <numero> ":" <matriz>
 <matriz>           ::= <fila> | <fila> <matriz>

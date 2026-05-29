@@ -1,12 +1,29 @@
 {
   "shapes": {
-    "PIXEL": [
-      [
+    "TRIANGLE": {
+      "color": "#33CC33", 
+      "estados": [
         [
-          1
+          [
+            1
+          ]
         ]
-      ]
-    ]
+      ], 
+      "type": "TRI", 
+      "chance": 1
+    }, 
+    "PIXEL": {
+      "color": "#00FF00", 
+      "estados": [
+        [
+          [
+            1
+          ]
+        ]
+      ], 
+      "type": "CIRCLE", 
+      "chance": 1
+    }
   }, 
   "tipo_juego": "SNAKE", 
   "config": {
@@ -107,5 +124,18 @@
         "objeto": "LEFT"
       }
     ]
+  }, 
+  "levels": {
+    "NYAN": {
+      "TAIL_COLORS": [
+        "#FF0000", 
+        "#FF7F00", 
+        "#FFFF00", 
+        "#00FF00", 
+        "#0000FF", 
+        "#4B0082", 
+        "#9400D3"
+      ]
+    }
   }
 }

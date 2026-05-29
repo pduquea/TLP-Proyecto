@@ -1,4 +1,5 @@
 {
+  "levels": {}, 
   "shapes": {
     "Z_PIECE": {
       "color": "#ff6b6b", 
@@ -72,7 +73,8 @@
           ]
         ]
       ], 
-      "chance": 3
+      "type": "RECT", 
+      "chance": 2
     }, 
     "L_PIECE": {
       "color": "#7dd781", 
@@ -214,7 +216,8 @@
           ]
         ]
       ], 
-      "chance": 1
+      "type": "RECT", 
+      "chance": 3
     }, 
     "P_PIECE": {
       "color": "#4ecdc4", 
@@ -237,7 +240,8 @@
           ]
         ]
       ], 
-      "chance": 2
+      "type": "RECT", 
+      "chance": 3
     }, 
     "T_PIECE": {
       "color": "#6f5acd", 
@@ -311,7 +315,8 @@
           ]
         ]
       ], 
-      "chance": 1
+      "type": "RECT", 
+      "chance": 2
     }, 
     "I_PIECE": {
       "color": "#f5eb27", 
@@ -369,7 +374,8 @@
           ]
         ]
       ], 
-      "chance": 1
+      "type": "RECT", 
+      "chance": 2
     }, 
     "O_PIECE": {
       "color": "#ffeb3b", 
@@ -385,10 +391,25 @@
           ]
         ]
       ], 
-      "chance": 2
+      "type": "RECT", 
+      "chance": 3
     }
   }, 
   "tipo_juego": "TETRIS", 
+  "powerups": {
+    "BONUS_STAR": {
+      "color": "#ffd700", 
+      "duration": null, 
+      "estados": [
+        [
+          [
+            1
+          ]
+        ]
+      ], 
+      "chance": 1
+    }
+  }, 
   "config": {
     "grid_size": [
       10, 
@@ -453,18 +474,5 @@
         "objeto": "CURRENT_PIECE"
       }
     ]
-  }, 
-  "powerups": {
-    "BONUS_STAR": {
-      "color": "#ffd700", 
-      "estados": [
-        [
-          [
-            1
-          ]
-        ]
-      ], 
-      "chance": 1
-    }
   }
 }
