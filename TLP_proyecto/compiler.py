@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function  # comentario: compatibilidad print Py2/Py3
 import sys
 import re
 import json
@@ -5,7 +7,7 @@ import json
 def lexer(codigo_fuente):
     # Elimina solo los comentarios completos de linea, sin borrar los valores de color como #FF5733
     codigo_fuente = re.sub(r'(?m)^\s*#.*$', '', codigo_fuente)
-    token_regex = r'\b[A-Z_]+\b|\d+|#(?:[0-9A-Fa-f]{6})|[\[\](),:]'
+    token_regex = r'\b[A-Z_]+\b|\d+\.\d+|\d+|#(?:[0-9A-Fa-f]{6})|[\[\](),:]'
     tokens = re.findall(token_regex, codigo_fuente)
     return tokens
 
@@ -13,7 +15,8 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.posicion = 0
-        self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}, "powerups": {}, "levels": {}}
+        # Added 'levels' key to AST to support level-specific settings (e.g., TAIL_COLORS)
+        self.ast = {"tipo_juego": None, "config": {}, "shapes": {}, "events": {}, "levels": {}}
 
     def parse(self):
         while self.posicion < len(self.tokens):
@@ -30,12 +33,11 @@ class Parser:
                 elif tipo_elemento == 'POWERUP':
                     self.parsear_powerup()
                 elif tipo_elemento == 'LEVELS':
-                    # backward compatibility: allow DEFINE LEVELS ... END (rare)
                     self.parsear_levels()
+                elif tipo_elemento == 'LEVEL':
+                    self.parsear_level()
             elif token_actual == 'ON':
                 self.parsear_evento()
-            elif token_actual == 'LEVELS':
-                self.parsear_levels()
             else:
                 self.posicion += 1
         return self.ast
@@ -84,10 +86,9 @@ class Parser:
                 matriz.append(fila)
             estados.append(matriz)
 
-        # propiedades adicionales: COLOR, CHANCE, TYPE
         color = None
         chance = 1
-        shape_type = 'RECT'
+        shape_type = None
         while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'TYPE']:
             propiedad = self.consumir()
             self.consumir(':')
@@ -123,70 +124,108 @@ class Parser:
 
         color = None
         chance = 1
-        duration = None
-        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'DURATION']:
+        powerup_type = None
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] in ['COLOR', 'CHANCE', 'TYPE']:
             propiedad = self.consumir()
             self.consumir(':')
             if propiedad == 'COLOR':
                 color = self.consumir()
             elif propiedad == 'CHANCE':
                 chance = int(self.consumir())
-            elif propiedad == 'DURATION':
-                duration = int(self.consumir())
+            elif propiedad == 'TYPE':
+                powerup_type = self.consumir()
 
         self.consumir('END')
         if 'powerups' not in self.ast:
             self.ast['powerups'] = {}
-        self.ast['powerups'][nombre_powerup] = {'estados': estados, 'color': color, 'chance': chance, 'duration': duration}
+        self.ast['powerups'][nombre_powerup] = {'estados': estados, 'color': color, 'chance': chance, 'type': powerup_type}
+
+    def parsear_level(self):
+        # Parse a single level block: DEFINE LEVEL <name>: [properties] END
+        nombre_nivel = self.consumir()
+        self.consumir(':')
+        nivel = self.parsear_propiedades_nivel()
+        self.consumir('END')
+        self.ast['levels'][nombre_nivel] = nivel
 
     def parsear_levels(self):
-        # Parse LEVELS block: LEVEL <NAME> : <props> END ... END
+        # Parse nested level blocks inside DEFINE LEVELS: ... END
         self.consumir('LEVELS')
+        self.consumir(':')
         while self.posicion < len(self.tokens) and self.tokens[self.posicion] != 'END':
             if self.tokens[self.posicion] == 'LEVEL':
                 self.consumir('LEVEL')
-                nombre = self.consumir()
+                nombre_nivel = self.consumir()
                 self.consumir(':')
-                props = {}
-                while self.posicion < len(self.tokens) and self.tokens[self.posicion] not in ['END', 'LEVEL']:
-                    key = self.consumir()
-                    # Accept values or ON/OFF
-                    if self.tokens[self.posicion] == ':':
-                        self.consumir(':')
-                    val = self.consumir()
-                    # allow lists of colors separated by commas
-                    if val and ',' in val:
-                        props[key] = [v.strip() for v in val.split(',')]
-                    else:
-                        # try to numeric
-                        try:
-                            props[key] = int(val)
-                        except:
-                            props[key] = val
-                # consume optional END after level
-                if self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'END':
-                    self.consumir('END')
-                self.ast['levels'][nombre] = props
+                nivel = self.parsear_propiedades_nivel()
+                self.consumir('END')
+                self.ast['levels'][nombre_nivel] = nivel
             else:
                 self.posicion += 1
-        # final END
-        if self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'END':
-            self.consumir('END')
+        self.consumir('END')
+
+    def parsear_propiedades_nivel(self):
+        nivel = {}
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] not in ['END', 'LEVEL']:
+            prop = self.consumir()
+            self.consumir(':')
+            if prop == 'TAIL_COLORS':
+                nivel['TAIL_COLORS'] = self.parsear_lista_colores()
+            else:
+                valor = self.consumir()
+                if prop in ('POISON_FOOD', 'OBSTACLES'):
+                    try:
+                        nivel[prop] = int(valor)
+                    except Exception:
+                        nivel[prop] = valor
+                elif prop in ('INVULNERABILITY_DURATION', 'SPEED'):
+                    try:
+                        if '.' in valor:
+                            nivel[prop] = float(valor)
+                        else:
+                            nivel[prop] = int(valor)
+                    except Exception:
+                        nivel[prop] = valor
+                else:
+                    try:
+                        if '.' in valor:
+                            nivel[prop] = float(valor)
+                        else:
+                            nivel[prop] = int(valor)
+                    except Exception:
+                        nivel[prop] = valor
+        return nivel
+
+    def parsear_lista_colores(self):
+        colores = []
+        self.consumir('[')
+        while self.posicion < len(self.tokens) and self.tokens[self.posicion] != ']':
+            colores.append(self.consumir())
+            if self.posicion < len(self.tokens) and self.tokens[self.posicion] == ',':
+                self.consumir(',')
+        self.consumir(']')
+        return colores
 
     def parsear_evento(self):
         self.consumir('ON')
         nombre_evento = 'ON_' + self.consumir()
         self.consumir(':')
         acciones = []
+        stop_tokens = ['END', 'ON', 'DEFINE']
+
         while self.posicion < len(self.tokens) and self.tokens[self.posicion] != 'END':
             verbo = self.consumir()
-           
-            if verbo == 'GAME_OVER':
+
+            if verbo in ['GAME_OVER', 'SET_INVULNERABLE', 'ROTATE']:
                 acciones.append({'accion': verbo, 'objeto': None, 'params': []})
                 continue
-            
-            objeto = self.consumir()
+
+            objeto = None
             params = []
+
+            if self.posicion < len(self.tokens) and self.tokens[self.posicion] not in stop_tokens:
+                objeto = self.consumir()
+
             if self.posicion < len(self.tokens) and self.tokens[self.posicion] == 'AT':
                 self.consumir('AT')
                 if self.tokens[self.posicion] == 'RANDOM':
@@ -198,23 +237,29 @@ class Parser:
                     y = int(self.consumir())
                     self.consumir(')')
                     params.append([x, y])
-            elif self.posicion < len(self.tokens) and self.tokens[self.posicion] not in ['END', 'ON', 'DEFINE', 'SPAWN', 'MOVE', 'ROTATE', 'INCREASE_SCORE', 'SET_DIRECTION', 'GROW', 'GAME_OVER']:
+            elif self.posicion < len(self.tokens) and self.tokens[self.posicion] not in stop_tokens:
                 params.append(self.consumir())
-            acciones.append({'accion': verbo, 'objeto': objeto, 'params': params})
+
+            acciones.append({
+                'accion': verbo,
+                'objeto': objeto,
+                'params': params
+            })
+
         self.consumir('END')
         self.ast['events'][nombre_evento] = acciones
-
+ 
 def generar_codigo(ast, archivo_salida):
     with open(archivo_salida, 'w') as f:
         json.dump(ast, f, indent=2)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print "Uso: python compiler.py <archivo_entrada.brick>"
+        print("Uso: python compiler.py <archivo_entrada.brick>")  # comentario: print() Py3
         sys.exit(1)
     archivo_entrada = sys.argv[1]
     archivo_salida = archivo_entrada.replace('.brick', '.json')
-    print "Compilando " + archivo_entrada + "..."
+    print("Compilando " + archivo_entrada + "...")  # comentario: print() Py3
     try:
         with open(archivo_entrada, 'r') as f:
             codigo = f.read()
@@ -222,8 +267,8 @@ if __name__ == "__main__":
         parser = Parser(tokens)
         ast = parser.parse()
         generar_codigo(ast, archivo_salida)
-        print "Compilacion exitosa! Archivo de juego creado en " + archivo_salida
+        print("Compilacion exitosa! Archivo de juego creado en " + archivo_salida)  # comentario: print() Py3
     except Exception as e:
-        print "\n!!! ERROR DE COMPILACION !!!"
-        print str(e)
+        print("\n!!! ERROR DE COMPILACION !!!")
+        print(str(e))
         sys.exit(1)

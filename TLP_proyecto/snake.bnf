@@ -1,0 +1,50 @@
+<programa> ::= <tipo_juego> <grid> <definiciones> <eventos>
+
+<tipo_juego> ::= "GAME_TYPE" "SNAKE"
+<grid>       ::= "GAME_GRID" "(" <numero> "," <numero> ")"
+<definiciones> ::= <definicion_shape> | <definicion_shape> <definiciones> | <definicion_levels> | <definicion_levels> <definiciones>
+<eventos>    ::= <evento> | <evento> <eventos>
+
+<definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <estados> <propiedades_shape> "END"
+<definicion_levels> ::= "DEFINE" "LEVELS" ":" <niveles> "END"
+<propiedades_shape> ::= <propiedad_shape> | <propiedad_shape> <propiedades_shape> | 
+<propiedad_shape> ::= "COLOR" ":" <hex> | "CHANCE" ":" <numero> | "TYPE" ":" <tipo_shape>
+
+<propiedades_nivel> ::= <propiedad_nivel> | <propiedad_nivel> <propiedades_nivel> | 
+<propiedad_nivel> ::= "TAIL_COLORS" ":" "[" <lista_hex> "]" | "INVULNERABILITY_DURATION" ":" <numero> | "POISON_FOOD" ":" <numero> | "OBSTACLES" ":" <numero> | "SPEED" ":" <numero>
+
+<lista_hex> ::= <hex> | <hex> "," <lista_hex>
+
+<tipo_shape> ::= "CIRCLE" | "BALL" | "TRI" | "TRIANGLE" | "RECT" | "RECTANGLE" | "PIXEL"
+
+<hex> ::= "#" <hex_digitos>
+<hex_digitos> ::= <hex_digito> | <hex_digito> <hex_digitos>
+<hex_digito> ::= "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"|"A"|"B"|"C"|"D"|"E"|"F" | "a"|"b"|"c"|"d"|"e"|"f"
+<estados>          ::= <estado> | <estado> <estados>
+<estado>           ::= "STATE" <numero> ":" <matriz>
+<matriz>           ::= <fila> | <fila> <matriz>
+<fila>             ::= "[" <valores_fila> "]"
+<valores_fila>     ::= <numero> | <numero> "," <valores_fila>
+
+<evento>         ::= "ON" <nombre_evento_snake> ":" <acciones_snake> "END"
+<nombre_evento_snake> ::= "START" | "TICK" | "EAT_FOOD" | "EAT_POISON" | "EAT_POWERUP" | "COLLISION_WALL" | "COLLISION_SELF" | "COLLISION_OBSTACLE" | "KEY_UP" | "KEY_DOWN" | "KEY_LEFT" | "KEY_RIGHT"
+<acciones_snake>     ::= <accion_snake> | <accion_snake> <acciones_snake>
+
+<accion_snake> ::= <accion_spawn_jugador> | <accion_spawn_comida> | <accion_spawn_poison> | <accion_spawn_powerup> | <accion_mover> | <accion_direccion> | <accion_puntos> | <accion_crecer> | <accion_gameover> | <accion_invulnerable>
+<accion_spawn_jugador> ::= "SPAWN" "PLAYER" "AT" <coordenadas>
+<accion_spawn_comida>  ::= "SPAWN" "FOOD" "AT" "RANDOM"
+<accion_spawn_poison> ::= "SPAWN" "POISON"
+<accion_spawn_powerup> ::= "SPAWN" "POWERUP"
+<accion_mover>         ::= "MOVE" "PLAYER" "FORWARD"
+<accion_direccion>     ::= "SET_DIRECTION" <direccion>
+<accion_puntos>        ::= "INCREASE_SCORE" <numero> | "DECREASE_SCORE" <numero>
+<accion_crecer>        ::= "GROW" "PLAYER" <numero>
+<accion_gameover>      ::= "GAME_OVER"
+<accion_invulnerable>  ::= "SET_INVULNERABLE"
+
+<coordenadas>   ::= "(" <numero> "," <numero> ")"
+<direccion>     ::= "UP" | "DOWN" | "LEFT" | "RIGHT"
+<identificador> ::= <letra> | <letra> <identificador>
+<numero>        ::= <digito> | <digito> <numero> | <digito> "." <numero>
+<letra>         ::= "A"..."Z" | "_"
+<digito>        ::= "0"..."9"

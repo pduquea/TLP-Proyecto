@@ -1,0 +1,35 @@
+<programa> ::= <tipo_juego> <grid> <definiciones> <eventos>
+
+<tipo_juego> ::= "GAME_TYPE" "TETRIS"
+<grid>       ::= "GAME_GRID" "(" <numero> "," <numero> ")"
+<definiciones> ::= <definicion_shape> | <definicion_powerup> | <definicion_shape> <definiciones> | <definicion_powerup> <definiciones>
+<eventos>    ::= <evento> | <evento> <eventos>
+
+<definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <estados> <atributos_shape> "END"
+<definicion_powerup> ::= "DEFINE" "POWERUP" <identificador> ":" <estados> <atributos_shape> "END"
+<atributos_shape> ::= <atributo_shape> | <atributo_shape> <atributos_shape> | 
+<atributo_shape> ::= "COLOR" ":" <color> | "CHANCE" ":" <numero>
+<color> ::= "#" <digito_hex> <digito_hex> <digito_hex> <digito_hex> <digito_hex> <digito_hex>
+<digito_hex> ::= "0"..."9" | "A"..."F" | "a"..."f"
+
+<estados>          ::= <estado> | <estado> <estados>
+<estado>           ::= "STATE" <numero> ":" <matriz>
+<matriz>           ::= <fila> | <fila> <matriz>
+<fila>             ::= "[" <valores_fila> "]"
+<valores_fila>     ::= <numero> | <numero> "," <valores_fila>
+
+<evento>         ::= "ON" <nombre_evento_tetris> ":" <acciones_tetris> "END"
+<nombre_evento_tetris> ::= "START" | "TICK" | "LINE_CLEAR" | "KEY_UP" | "KEY_DOWN" | "KEY_LEFT" | "KEY_RIGHT"
+<acciones_tetris>    ::= <accion_tetris> | <accion_tetris> <acciones_tetris>
+
+<accion_tetris> ::= <accion_spawn> | <accion_mover> | <accion_rotar> | <accion_puntos>
+<accion_spawn>  ::= "SPAWN" "RANDOM_SHAPE" | "SPAWN" "POWERUP"
+<accion_mover>  ::= "MOVE" "CURRENT_PIECE" <direccion>
+<accion_rotar>  ::= "ROTATE" "CURRENT_PIECE"
+<accion_puntos> ::= "INCREASE_SCORE" <numero>
+
+<direccion>     ::= "LEFT" | "RIGHT" | "DOWN"
+<identificador> ::= <letra> | <letra> <identificador>
+<numero>        ::= <digito> | <digito> <numero>
+<letra>         ::= "A"..."Z" | "_"
+<digito>        ::= "0"..."9"
