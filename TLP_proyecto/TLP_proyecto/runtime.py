@@ -5,8 +5,13 @@ import sys
 import json
 import time
 import random
-import Tkinter as tk
-import tkMessageBox # Necesario para el GAME OVER
+
+try:
+    import tkinter as tk
+    from tkinter import messagebox
+except ImportError:
+    import Tkinter as tk
+    import tkMessageBox as messagebox
 # Quitamos os y msvcrt ya que la GUI maneja el dibujo y el input
 # Compatibilidad entre Python2/3 para comprobacion de strings
 try:
@@ -67,10 +72,19 @@ class Juego:
             self.lineas_limpias_simultaneas = 0  # Contador para powerups
         
         if self.tipo_juego == 'SNAKE':
+            # Estado de la serpiente y elementos del juego
             self.serpiente_cuerpo = []
             self.serpiente_direccion = (1, 0)
             self.posicion_comida = None
+            self.posicion_poison = None
+            self.posicion_powerup = None
+            self.obstacle_positions = []
+            self.grow_pending = 0
             self.velocidad_gravedad = 0.15
+            self.invulnerable = False
+            self.invulnerable_tiempo = 0
+            self.nivel_seleccionado = False
+
             # Detectar forma de segmento desde DEFINE SHAPE / shapes en el archivo de juego
             self.snake_shape = None
             shapes_def = self.datos_juego.get('shapes', {})
@@ -81,7 +95,6 @@ class Juego:
                     break
             # Backwards-compatible heuristics if no explicit TYPE provided
             if not self.snake_shape:
-                # common shape names that indicate non-rect shapes
                 for name in ('BALL', 'PIXEL', 'TRI'):
                     if name in shapes_def:
                         entry = shapes_def[name]
@@ -89,7 +102,6 @@ class Juego:
                             self.snake_shape = entry.get('type')
                             break
                         else:
-                            # use the name as hint
                             self.snake_shape = name
                             break
             # Normalizar a nombres simples y mapear sinónimos
@@ -103,61 +115,82 @@ class Juego:
                 elif s in ('TRI', 'TRIANGLE'):
                     self.snake_shape = 'TRI'
                 else:
-                    # keep rectangle/bitmap default as None (rectangles)
                     if s in ('RECT', 'RECTANGLE', 'PIXEL', 'SQUARE'):
                         self.snake_shape = None
                     else:
-                        # unknown token -> leave as None for compatibility
                         self.snake_shape = None
             else:
                 self.snake_shape = None
 
-            # Nivel activo y colores de cola (para Nyan Cat)
-            start_level = config.get('start_level')
-            levels = self.datos_juego.get('levels', {})
-            if start_level and start_level in levels:
-                self.current_level = start_level
-                self.level_config = levels.get(start_level, {})
-            else:
-                # por compatibilidad, elegir primer nivel si existe
-                # preferir un nivel que tenga TAIL_COLORS (Nyan)
-                chosen = None
-                for k, v in levels.items():
-                    if isinstance(v, dict) and v.get('TAIL_COLORS'):
-                        chosen = k
-                        break
-                if not chosen:
-                    try:
-                        chosen = next(iter(levels)) if levels else None
-                    except Exception:
-                        chosen = None
-                self.current_level = chosen
-                self.level_config = levels.get(self.current_level, {}) if self.current_level else {}
-
+            # Cargar niveles desde el JSON generado por el compilador
+            self.levels = self.datos_juego.get('levels', {})
+            self.current_level = None
+            self.level_config = {}
             self.tail_colors = []
-            if isinstance(self.level_config, dict):
-                self.tail_colors = self.level_config.get('TAIL_COLORS', [])
-            self.is_nyan_mode = bool(self.tail_colors)
+            self.is_nyan_mode = False
+
+            # Mostrar menú de selección de nivel (si hay niveles o usar defaults)
+            self.mostrar_menu_nivel()
+
+        if self.tipo_juego == 'BRICK_TANKS':
+            self.tank_entities = []
+            self.tank_bullets = []
+            self.tank_walls = []
+            self.tank_move_delay = 0.0
+            self.tank_spawn_rate = 0.4
+            self.tank_boss_spawned = False
+            self.tank_target_score = 1000
+            self.tank_player = None
+            self.tank_boss_defeated = False
+            self.tank_ai_tick = 0
+            self.tank_enemies_defeated = 0
+            self.tank_kills_to_boss = 3
+            self.tank_spawn_walls()
         
         self.timer_gravedad = 0
-        self.ejecutar_evento('ON_START')
+        # Sólo ejecutar ON_START automáticamente para juegos que no sean SNAKE
+        if self.tipo_juego != 'SNAKE':
+            self.ejecutar_evento('ON_START')
+        if self.tipo_juego == 'BRICK_TANKS':
+            self.tank_spawn_initial_wave()
         self.timer_id = None # Para controlar el loop de Tkinter
 
     def run(self):
         # Inicia el ciclo principal de juego de Tkinter
-        self.root.after(50, self.game_loop) 
-        self.root.mainloop() 
+        # Si es Snake y no se ha seleccionado nivel, mostrar el menú y esperar
+        if self.tipo_juego == 'SNAKE' and not getattr(self, 'nivel_seleccionado', False):
+            self.root.mainloop()
+            return
+        self.root.after(50, self.game_loop)
+        self.root.mainloop()
 
     def game_loop(self):
         if self.juego_terminado:
             self.mostrar_game_over()
             return
 
+        if self.tipo_juego == 'BRICK_TANKS' and getattr(self, 'tank_boss_defeated', False):
+            self.mostrar_victoria()
+            return
+        # Manejo de invulnerabilidad para Snake
+        if self.tipo_juego == 'SNAKE' and getattr(self, 'invulnerable', False):
+            try:
+                self.invulnerable_tiempo -= 0.05
+            except Exception:
+                self.invulnerable_tiempo = 0
+            if self.invulnerable_tiempo <= 0:
+                self.invulnerable = False
+                self.invulnerable_tiempo = 0
+
         # Logica de TICK/Gravedad
-        self.timer_gravedad += 0.05 
-        if self.timer_gravedad >= self.velocidad_gravedad:
+        self.timer_gravedad += 0.05
+        if self.timer_gravedad >= getattr(self, 'velocidad_gravedad', 0.15):
             self.timer_gravedad = 0
             self.ejecutar_evento('ON_TICK')
+
+        if self.tipo_juego == 'BRICK_TANKS':
+            self.tank_update_bullets()
+            self.tank_update_ai()
 
         self.dibujar()
 
@@ -185,7 +218,12 @@ class Juego:
             elif key == 'DOWN': self.snake_cambiar_direccion('DOWN')
             elif key == 'LEFT': self.snake_cambiar_direccion('LEFT')
             elif key == 'RIGHT': self.snake_cambiar_direccion('RIGHT')
-
+        elif self.tipo_juego == 'BRICK_TANKS':
+            if key == 'UP': self.ejecutar_evento('ON_KEY_UP')
+            elif key == 'DOWN': self.ejecutar_evento('ON_KEY_DOWN')
+            elif key == 'LEFT': self.ejecutar_evento('ON_KEY_LEFT')
+            elif key == 'RIGHT': self.ejecutar_evento('ON_KEY_RIGHT')
+            elif key == 'SPACE': self.tank_player_shoot()
 
     def dibujar(self):
         self.canvas.delete("all") 
@@ -220,6 +258,14 @@ class Juego:
             if self.posicion_comida:
                 x, y = self.posicion_comida
                 self.dibujar_celda(x, y, COLOR_FOOD)
+            if getattr(self, 'posicion_poison', None):
+                x, y = self.posicion_poison
+                self.dibujar_celda(x, y, '#9933FF', shape='CIRCLE')
+            if getattr(self, 'posicion_powerup', None):
+                x, y = self.posicion_powerup
+                self.dibujar_celda(x, y, '#FFFF00', shape='CIRCLE')
+            for (x, y) in self.obstacle_positions:
+                self.dibujar_celda(x, y, '#555555')
             for i, segmento in enumerate(self.serpiente_cuerpo):
                 x, y = segmento
                 # Nyan mode: head circle with cat ears, tail rainbow
@@ -263,6 +309,14 @@ class Juego:
                     shape = self.snake_shape  # already 'CIRCLE', 'TRI' or None
                     self.dibujar_celda(x, y, color, shape=shape)
 
+        if self.tipo_juego == 'BRICK_TANKS':
+            for wall in getattr(self, 'tank_walls', []):
+                self.dibujar_celda(wall['x'], wall['y'], '#8B5A2B')
+            for bullet in getattr(self, 'tank_bullets', []):
+                self.dibujar_celda(bullet['x'], bullet['y'], bullet.get('color', '#FFFFFF'), shape=bullet.get('shape', 'CIRCLE'))
+            for entity in getattr(self, 'tank_entities', []):
+                self.dibujar_celda(entity['x'], entity['y'], entity.get('color', '#00FFFF'), shape=entity.get('shape'))
+
     def dibujar_celda(self, x, y, color, shape=None):
         ts = self.taman_celda 
         x1, y1 = x * ts, y * ts
@@ -281,24 +335,74 @@ class Juego:
 
 
     def ejecutar_evento(self, nombre_evento):
-        if nombre_evento in self.datos_juego['events']:
+        evento_definido = nombre_evento in self.datos_juego['events']
+        if evento_definido:
             for accion in self.datos_juego['events'][nombre_evento]:
                 verbo, objeto = accion.get('accion'), accion.get('objeto')
                 
                 if verbo == 'INCREASE_SCORE': self.puntuacion += int(objeto)
+                if verbo == 'DECREASE_SCORE': self.puntuacion -= int(objeto)
                 if verbo == 'GAME_OVER': self.juego_terminado = True
+                if verbo == 'SET_INVULNERABLE':
+                    self.invulnerable = True
+                    try:
+                        self.invulnerable_tiempo = float(self.invulnerability_duration or 0)
+                    except Exception:
+                        self.invulnerable_tiempo = 0
 
                 if self.tipo_juego == 'TETRIS':
                     if verbo == 'SPAWN': self.tetris_spawn_pieza()
                     if verbo == 'MOVE': self.tetris_mover_pieza(accion['params'][0])
                     if verbo == 'ROTATE': self.tetris_rotar_pieza()
 
-                
                 if self.tipo_juego == 'SNAKE':
                     if verbo == 'SPAWN' and objeto == 'PLAYER': self.snake_spawn_jugador(accion)
                     if verbo == 'SPAWN' and objeto == 'FOOD': self.snake_spawn_comida()
+                    if verbo == 'SPAWN' and objeto == 'POISON': self.snake_spawn_poison()
+                    if verbo == 'SPAWN' and objeto == 'POWERUP': self.snake_spawn_powerup()
                     if verbo == 'MOVE' and objeto == 'PLAYER': self.snake_mover_jugador()
-                    if verbo == 'GROW': self.snake_crecer()
+                    if verbo == 'GROW':
+                        try:
+                            amt = int(accion.get('params', [1])[0])
+                        except Exception:
+                            amt = 1
+                        self.snake_crecer(amt)
+
+                if self.tipo_juego == 'BRICK_TANKS':
+                    if verbo == 'SPAWN': self.tank_spawn_entity(objeto, accion.get('params', []))
+                    if verbo == 'MOVE': self.tank_move_entity(objeto, accion.get('params', []))
+                    if verbo == 'SHOOT': self.tank_shoot(objeto, accion.get('params', []))
+                    if verbo == 'REPAIR': self.tank_repair_entity(objeto, accion.get('params', []))
+
+                if self.tipo_juego == 'BRICK_TANKS' and verbo in ['INCREASE_SCORE', 'DECREASE_SCORE']:
+                    self.tank_check_target_score()
+
+        if self.tipo_juego == 'SNAKE' and not evento_definido:
+            if nombre_evento == 'ON_EAT_POISON':
+                # Guardar puntuacion antes para detectar si baja A cero
+                puntuacion_antes = self.puntuacion
+                self.puntuacion -= 10
+                if self.puntuacion < 0:
+                    self.puntuacion = 0
+                # Game over solo si la puntuacion BAJA A cero (no si ya estaba en 0)
+                if puntuacion_antes > 0 and self.puntuacion == 0:
+                    self.juego_terminado = True
+                if getattr(self, 'poison_enabled', False):
+                    self.snake_spawn_poison()
+            elif nombre_evento == 'ON_EAT_POWERUP':
+                # Activar invulnerabilidad por la duracion del nivel
+                self.invulnerable = True
+                try:
+                    self.invulnerable_tiempo = float(self.invulnerability_duration or 0)
+                except Exception:
+                    self.invulnerable_tiempo = 0
+                # Siempre spawnearse otro powerup
+                self.snake_spawn_powerup()
+            elif nombre_evento == 'ON_COLLISION_OBSTACLE':
+                if self.puntuacion <= 0:
+                    self.juego_terminado = True
+                else:
+                    self.puntuacion = 0
 
     def tetris_spawn_pieza(self):
         # Seleccion ponderada basada en CHANCE sin usar numpy
@@ -408,6 +512,415 @@ class Juego:
                         'color': color_hex if color_hex else '#FFD700'
                     })
                     break
+
+    def tank_spawn_walls(self):
+        self.tank_walls = []
+        for x, y in [(4, 8), (5, 8), (6, 8), (4, 9), (6, 9), (5, 10)]:
+            if 0 <= x < self.ancho and 0 <= y < self.alto:
+                self.tank_walls.append({'x': x, 'y': y})
+
+    def tank_spawn_initial_wave(self):
+        if self.tipo_juego != 'BRICK_TANKS':
+            return
+        if any(entity.get('kind') == 'enemy' for entity in self.tank_entities):
+            return
+        for x in [2, 5, 9]:
+            self.tank_spawn_entity('ENEMY_TANK', [[x, 1]])
+
+    def tank_spawn_entity(self, nombre_entidad, params=None):
+        if not nombre_entidad:
+            return
+        params = params or []
+        nombre_entidad_upper = str(nombre_entidad).upper()
+        shapes_data = self.datos_juego.get('shapes', {})
+        powerups_data = self.datos_juego.get('powerups', {})
+
+        if nombre_entidad_upper == 'BOSS':
+            boss_data = self.tank_get_boss_data()
+            if not boss_data:
+                return
+            x, y = self.tank_resolver_posicion(nombre_entidad_upper, params)
+            entity = {
+                'name': 'BOSS',
+                'kind': 'boss',
+                'x': x,
+                'y': y,
+                'health': int(boss_data.get('hp', 5)),
+                'damage': int(boss_data.get('damage', 2)),
+                'color': boss_data.get('color', '#800080'),
+                'shape': 'RECT',
+                'direction': (0, 1),
+            }
+            self.tank_entities.append(entity)
+            self.tank_boss_spawned = True
+            return
+
+        if nombre_entidad_upper == 'BULLET':
+            x, y = self.tank_resolver_posicion(nombre_entidad_upper, params)
+            self.tank_bullets.append({
+                'x': x,
+                'y': y,
+                'dx': 0,
+                'dy': 1,
+                'owner': 'neutral',
+            })
+            return
+
+        if nombre_entidad_upper in powerups_data:
+            shape_data = powerups_data[nombre_entidad_upper]
+            entity_kind = 'powerup'
+        elif nombre_entidad_upper in shapes_data:
+            shape_data = shapes_data[nombre_entidad_upper]
+            shape_type = str(shape_data.get('type') or '').upper()
+            if shape_type == 'PLAYER':
+                entity_kind = 'player'
+            elif shape_type == 'ENEMY':
+                entity_kind = 'enemy'
+            elif shape_type == 'BULLET':
+                entity_kind = 'bullet'
+            else:
+                entity_kind = 'enemy' if nombre_entidad_upper.startswith('ENEMY') else 'player'
+        else:
+            entity_kind = 'neutral'
+            shape_data = {'color': '#00FFFF', 'type': 'RECT'}
+
+        if entity_kind == 'powerup':
+            health = 1
+        elif entity_kind == 'player':
+            health = 3
+        elif entity_kind == 'boss':
+            health = 6
+        elif entity_kind == 'enemy':
+            health = 2
+        else:
+            resistance = shape_data.get('resistance', shape_data.get('health', 3))
+            try:
+                health = int(resistance)
+            except Exception:
+                health = 3
+
+        x, y = self.tank_resolver_posicion(nombre_entidad_upper, params)
+        shape_name = 'RECT'
+        if entity_kind == 'bullet':
+            shape_name = 'CIRCLE'
+        else:
+            shape_type = str(shape_data.get('type') or '').upper()
+            if shape_type in ('CIRCLE', 'BALL'):
+                shape_name = 'CIRCLE'
+            elif shape_type in ('TRI', 'TRIANGLE'):
+                shape_name = 'TRI'
+            else:
+                shape_name = 'RECT'
+
+        entity = {
+            'name': nombre_entidad,
+            'kind': entity_kind,
+            'x': x,
+            'y': y,
+            'health': health,
+            'color': shape_data.get('color', '#00FFFF'),
+            'shape': shape_name,
+            'direction': (0, -1) if entity_kind == 'player' else (0, 1),
+        }
+        if entity_kind == 'enemy':
+            entity['next_shot_time'] = time.time() + 1.2 + (x % 3) * 0.2
+        elif entity_kind == 'boss':
+            entity['next_shot_time'] = time.time() + 1.6
+        self.tank_entities.append(entity)
+        if entity_kind == 'player':
+            self.tank_player = entity
+
+    def tank_resolver_posicion(self, nombre_entidad, params=None):
+        params = params or []
+        if params and isinstance(params[0], list) and len(params[0]) == 2:
+            return int(params[0][0]), int(params[0][1])
+
+        if nombre_entidad.upper().startswith('PLAYER'):
+            return self.ancho // 2, self.alto - 2
+        return random.randint(1, self.ancho - 2), 1
+
+    def tank_move_entity(self, nombre_entidad, params=None):
+        params = params or []
+        nombre_entidad_upper = str(nombre_entidad).upper()
+        if nombre_entidad_upper == 'BULLET':
+            self.tank_move_bullets(params)
+            return
+
+        direction = str(params[0]).upper() if params else 'DOWN'
+        if direction == 'FORWARD':
+            direction = 'DOWN'
+
+        for entity in self.tank_get_entities(nombre_entidad):
+            if entity['kind'] == 'powerup':
+                continue
+            dx, dy = self.tank_delta_por_direccion(direction, entity)
+            nuevo_x = entity['x'] + dx
+            nuevo_y = entity['y'] + dy
+            if 0 <= nuevo_x < self.ancho and 0 <= nuevo_y < self.alto:
+                entity['x'] = nuevo_x
+                entity['y'] = nuevo_y
+                entity['direction'] = (dx, dy)
+
+    def tank_shoot(self, nombre_entidad, params=None):
+        params = params or []
+        direction = str(params[0]).upper() if params else None
+        for entity in self.tank_get_entities(nombre_entidad):
+            if entity['kind'] == 'powerup':
+                continue
+
+            if entity.get('kind') == 'enemy':
+                now = time.time()
+                next_shot = entity.get('next_shot_time')
+                if next_shot is None:
+                    next_shot = now - 1.0
+                if now < next_shot:
+                    continue
+                entity['next_shot_time'] = now + 2.2 + random.random() * 0.6
+
+            dx, dy = self.tank_delta_por_direccion(direction or ('UP' if entity['kind'] == 'player' else 'DOWN'), entity)
+            self.tank_bullets.append({
+                'x': entity['x'],
+                'y': entity['y'],
+                'dx': dx,
+                'dy': dy,
+                'owner': entity['kind'],
+                'color': '#FF4D4D' if entity['kind'] == 'player' else '#FFFFFF',
+                'shape': 'CIRCLE',
+            })
+
+    def tank_player_shoot(self):
+        if not self.tank_player:
+            player_entities = [entity for entity in self.tank_entities if entity.get('kind') == 'player']
+            if player_entities:
+                self.tank_player = player_entities[0]
+            else:
+                return
+        self.tank_bullets.append({
+            'x': self.tank_player['x'],
+            'y': self.tank_player['y'] - 1,
+            'dx': 0,
+            'dy': -1,
+            'owner': 'player',
+            'color': '#FF4D4D',
+            'shape': 'CIRCLE',
+        })
+
+    def tank_repair_entity(self, nombre_entidad, params=None):
+        params = params or []
+        amount = 1
+        if params:
+            try:
+                amount = int(params[0])
+            except Exception:
+                amount = 1
+        for entity in self.tank_get_entities(nombre_entidad):
+            entity['health'] += amount
+
+    def tank_delta_por_direccion(self, direction, entity):
+        if direction in ('UP', 'U'):
+            return 0, -1
+        if direction in ('DOWN', 'D'):
+            return 0, 1
+        if direction in ('LEFT', 'L'):
+            return -1, 0
+        if direction in ('RIGHT', 'R'):
+            return 1, 0
+        if entity is None:
+            return (0, 1)
+        return entity.get('direction', (0, 1))
+
+    def tank_get_entities(self, nombre_entidad):
+        if not nombre_entidad:
+            return []
+        return [entity for entity in self.tank_entities if entity.get('name') == nombre_entidad]
+
+    def tank_move_bullets(self, params=None):
+        params = params or []
+        direction = str(params[0]).upper() if params else 'FORWARD'
+        for bullet in list(self.tank_bullets):
+            if direction == 'FORWARD':
+                dx, dy = bullet.get('dx', 0), bullet.get('dy', 0)
+            else:
+                dx, dy = self.tank_delta_por_direccion(direction, None)
+                bullet['dx'], bullet['dy'] = dx, dy
+            bullet['x'] += dx
+            bullet['y'] += dy
+            if not (0 <= bullet['x'] < self.ancho and 0 <= bullet['y'] < self.alto):
+                self.tank_bullets.remove(bullet)
+
+    def tank_update_ai(self):
+        if self.tipo_juego != 'BRICK_TANKS':
+            return
+        self.tank_ai_tick += 1
+
+        enemy_count = sum(1 for entity in self.tank_entities if entity.get('kind') == 'enemy')
+        if enemy_count < 3 and not self.tank_boss_spawned and self.tank_ai_tick % 20 == 0:
+            for x in [2, 5, 9]:
+                if enemy_count >= 3:
+                    break
+                self.tank_spawn_entity('ENEMY_TANK', [[x, 1]])
+                enemy_count += 1
+
+        for entity in list(self.tank_entities):
+            if entity.get('kind') == 'enemy':
+                entity['y'] = min(2, max(1, entity['y']))
+                if self.tank_ai_tick % 10 == 0 and random.random() < 0.3:
+                    dx = random.choice([-1, 1])
+                    new_x = entity['x'] + dx
+                    if 0 <= new_x < self.ancho:
+                        entity['x'] = new_x
+                        entity['direction'] = (dx, 0)
+                if self.tank_player and time.time() >= entity.get('next_shot_time', 0):
+                    self.tank_enemy_shoot(entity)
+                    entity['next_shot_time'] = time.time() + 60.0
+            elif entity.get('kind') == 'boss':
+                if self.tank_player and self.tank_ai_tick % 8 == 0:
+                    if entity['x'] < self.tank_player['x'] and random.random() < 0.5:
+                        entity['x'] = min(self.ancho - 1, entity['x'] + 1)
+                    elif entity['x'] > self.tank_player['x'] and random.random() < 0.5:
+                        entity['x'] = max(0, entity['x'] - 1)
+                if self.tank_player and time.time() >= entity.get('next_shot_time', 0):
+                    self.tank_boss_shoot(entity)
+                    entity['next_shot_time'] = time.time() + 2.2
+
+        if not self.tank_boss_spawned and not any(entity.get('kind') == 'enemy' for entity in self.tank_entities):
+            self.tank_spawn_boss()
+
+    def tank_enemy_shoot(self, entity):
+        if not self.tank_player:
+            return
+        target_x = self.tank_player['x']
+        dx = 0
+        if target_x < entity['x'] and random.random() < 0.5:
+            dx = -1
+        elif target_x > entity['x'] and random.random() < 0.5:
+            dx = 1
+        self.tank_bullets.append({
+            'x': entity['x'],
+            'y': entity['y'] + 1,
+            'dx': dx,
+            'dy': 1,
+            'owner': 'enemy',
+            'shape': 'CIRCLE',
+        })
+
+    def tank_boss_shoot(self, entity):
+        self.tank_bullets.append({
+            'x': entity['x'],
+            'y': entity['y'] + 1,
+            'dx': 0,
+            'dy': 1,
+            'owner': 'enemy',
+            'color': '#FFFFFF',
+            'color': '#FFFFFF',
+            'shape': 'CIRCLE',
+        })
+
+    def tank_spawn_boss(self):
+        if self.tank_boss_spawned:
+            return
+        boss_data = self.tank_get_boss_data()
+        if not boss_data:
+            return
+        self.tank_boss_spawned = True
+        self.ejecutar_evento('ON_TARGET_SCORE')
+
+    def tank_handle_enemy_defeat(self, entity):
+        if not entity or entity.get('kind') != 'enemy':
+            return
+        if entity in self.tank_entities:
+            self.tank_entities.remove(entity)
+        self.tank_enemies_defeated += 1
+        self.puntuacion += 100
+        if self.tank_boss_spawned:
+            return
+        if self.tank_enemies_defeated >= getattr(self, 'tank_kills_to_boss', 3):
+            self.tank_spawn_boss()
+
+    def tank_update_bullets(self):
+        for bullet in list(self.tank_bullets):
+            bullet['x'] += bullet['dx']
+            bullet['y'] += bullet['dy']
+            if not (0 <= bullet['x'] < self.ancho and 0 <= bullet['y'] < self.alto):
+                self.tank_bullets.remove(bullet)
+                continue
+
+            impactado = False
+            for wall in list(self.tank_walls):
+                if wall['x'] == bullet['x'] and wall['y'] == bullet['y']:
+                    self.tank_walls.remove(wall)
+                    impactado = True
+                    break
+            if impactado:
+                self.tank_bullets.remove(bullet)
+                continue
+
+            for entity in list(self.tank_entities):
+                if entity['x'] != bullet['x'] or entity['y'] != bullet['y']:
+                    continue
+                if entity['kind'] == 'powerup':
+                    if bullet.get('owner') == 'player':
+                        self.tank_entities.remove(entity)
+                        if self.tank_player:
+                            self.tank_player['health'] = min(3, self.tank_player['health'] + 1)
+                        self.puntuacion += 50
+                    impactado = True
+                    break
+                if entity['kind'] != bullet['owner']:
+                    if entity['kind'] == 'boss':
+                        entity['health'] -= 1
+                        if entity['health'] <= 0:
+                            self.tank_entities.remove(entity)
+                            self.tank_boss_defeated = True
+                            self.puntuacion += 250
+                    elif entity['kind'] == 'player':
+                        entity['health'] -= 1
+                        if entity['health'] <= 0:
+                            self.juego_terminado = True
+                            self.puntuacion = max(0, self.puntuacion - 50)
+                        else:
+                            self.tank_player = entity
+                    else:
+                        entity['health'] -= 1
+                        if entity['health'] <= 0:
+                            self.tank_handle_enemy_defeat(entity)
+                        else:
+                            self.puntuacion += 10
+                    if bullet.get('owner') == 'player':
+                        self.tank_bullets.append({
+                            'x': entity['x'],
+                            'y': entity['y'],
+                            'dx': 0,
+                            'dy': 0,
+                            'owner': 'player',
+                            'color': '#FF4D4D',
+                            'shape': 'CIRCLE',
+                            'ttl': 1,
+                        })
+                    impactado = True
+                    break
+                    break
+            if impactado:
+                self.tank_bullets.remove(bullet)
+
+    def tank_check_target_score(self):
+        if self.tipo_juego != 'BRICK_TANKS':
+            return
+        if getattr(self, 'tank_boss_spawned', False):
+            return
+        if self.puntuacion >= getattr(self, 'tank_target_score', 1000):
+            self.tank_boss_spawned = True
+            self.ejecutar_evento('ON_TARGET_SCORE')
+
+    def tank_get_boss_data(self):
+        boss_data = self.datos_juego.get('boss', {})
+        if isinstance(boss_data, dict):
+            if 'BOSS' in boss_data and isinstance(boss_data['BOSS'], dict):
+                return boss_data['BOSS']
+            for entry in boss_data.values():
+                if isinstance(entry, dict):
+                    return entry
+        return None
     
     def snake_spawn_jugador(self, accion):
         coords = accion['params'][0] if accion['params'] else [self.ancho / 2, self.alto / 2]
@@ -417,8 +930,29 @@ class Juego:
     def snake_spawn_comida(self):
         while True:
             x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
-            if (x, y) not in self.serpiente_cuerpo:
+            if (x, y) not in self.serpiente_cuerpo and (x, y) not in self.obstacle_positions:
                 self.posicion_comida = (x, y)
+                break
+        # Generar poison si el nivel lo permite
+        if getattr(self, 'poison_enabled', False) and not getattr(self, 'posicion_poison', None):
+            self.snake_spawn_poison()
+
+    def snake_spawn_poison(self):
+        if not getattr(self, 'poison_enabled', False):
+            return
+        while True:
+            x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
+            if (x, y) not in self.serpiente_cuerpo and (x, y) != self.posicion_comida and (x, y) not in self.obstacle_positions:
+                self.posicion_poison = (x, y)
+                break
+
+    def snake_spawn_powerup(self):
+        if not getattr(self, 'powerup_enabled', False):
+            return
+        while True:
+            x, y = random.randint(0, self.ancho - 1), random.randint(0, self.alto - 1)
+            if (x, y) not in self.serpiente_cuerpo and (x, y) != self.posicion_comida and (x, y) != getattr(self, 'posicion_poison', None) and (x, y) not in self.obstacle_positions:
+                self.posicion_powerup = (x, y)
                 break
                 
     def snake_mover_jugador(self):
@@ -426,19 +960,78 @@ class Juego:
         cabeza_x, cabeza_y = self.serpiente_cuerpo[0]
         dir_x, dir_y = self.serpiente_direccion
         nueva_cabeza = (cabeza_x + dir_x, cabeza_y + dir_y)
-
+        # Colisiones con paredes
         if not (0 <= nueva_cabeza[0] < self.ancho and 0 <= nueva_cabeza[1] < self.alto):
-            self.ejecutar_evento('ON_COLLISION_WALL')
-            return
-            
+            if getattr(self, 'invulnerable', False):
+                # Cuando hay invulnerabilidad, la serpiente atraviesa la pared y reaparece
+                # en el lado opuesto del panel de juego.
+                nueva_cabeza = (nueva_cabeza[0] % self.ancho, nueva_cabeza[1] % self.alto)
+            else:
+                if self.is_nyan_mode:
+                    if self.puntuacion <= 0:
+                        self.juego_terminado = True
+                    else:
+                        self.puntuacion = 0
+                    return
+                self.ejecutar_evento('ON_COLLISION_WALL')
+                return
+
+        # Colision con si mismo
         if nueva_cabeza in self.serpiente_cuerpo[:-1]:
+            if getattr(self, 'invulnerable', False):
+                if self.puntuacion <= 0:
+                    self.juego_terminado = True
+                else:
+                    self.puntuacion = 0
+                return
+            if self.is_nyan_mode:
+                if self.puntuacion <= 0:
+                    self.juego_terminado = True
+                else:
+                    self.puntuacion = 0
+                return
             self.ejecutar_evento('ON_COLLISION_SELF')
             return
 
+        # Colision con obstaculos
+        if getattr(self, 'obstacles_enabled', False) and nueva_cabeza in self.obstacle_positions:
+            if getattr(self, 'invulnerable', False):
+                if self.puntuacion <= 0:
+                    self.juego_terminado = True
+                else:
+                    self.puntuacion = 0
+                return
+            if self.puntuacion - 50 <= 0:
+                self.juego_terminado = True
+                return
+            self.puntuacion -= 50
+            self.ejecutar_evento('ON_COLLISION_OBSTACLE')
+            return
+
         self.serpiente_cuerpo.insert(0, nueva_cabeza)
-        
+
+        # Comer comida / poison / powerup
         if nueva_cabeza == self.posicion_comida:
+            self.puntuacion += 10
+            self.snake_crecer(1)
+            self.posicion_comida = None
+            self.snake_spawn_comida()
             self.ejecutar_evento('ON_EAT_FOOD')
+        elif getattr(self, 'posicion_poison', None) and nueva_cabeza == self.posicion_poison:
+            self.posicion_poison = None
+            # Penalizacion por comer fruta venenosa (por defecto)
+            try:
+                self.puntuacion -= 10
+            except Exception:
+                self.puntuacion = 0
+            self.ejecutar_evento('ON_EAT_POISON')
+        elif getattr(self, 'posicion_powerup', None) and nueva_cabeza == self.posicion_powerup:
+            self.posicion_powerup = None
+            # El evento ON_EAT_POWERUP activará la invulnerabilidad
+            self.ejecutar_evento('ON_EAT_POWERUP')
+
+        if self.grow_pending > 0:
+            self.grow_pending -= 1
         else:
             self.serpiente_cuerpo.pop()
 
@@ -452,16 +1045,108 @@ class Juego:
         elif direccion == 'RIGHT' and self.serpiente_direccion[0] != -1:
             self.serpiente_direccion = (1, 0)
 
-    def snake_crecer(self):
-        pass
+    def snake_crecer(self, cantidad=1):
+        # Incrementa contador de crecimiento; el cuerpo crecerá en los siguientes ticks
+        try:
+            self.grow_pending += int(cantidad)
+        except Exception:
+            try:
+                self.grow_pending += 1
+            except Exception:
+                self.grow_pending = 1
 
 
     # METODOS DE SALIDA (ADAPTADOS A GUI)
 
     def mostrar_game_over(self):
-        tkMessageBox.showinfo("Juego Terminado", "Puntuacion Final: " + str(self.puntuacion))
+        messagebox.showinfo("Juego Terminado", "Puntuacion Final: " + str(self.puntuacion))
         self.root.destroy()
         sys.exit(0)
+
+    def mostrar_victoria(self):
+        messagebox.showinfo("Victoria", "Has derrotado al Final Boss. Felicidades!")
+        self.root.destroy()
+        sys.exit(0)
+
+    def mostrar_menu_nivel(self):
+        niveles = list(self.levels.keys())
+        # Si no hay niveles, crear valores por defecto para compatibilidad
+        if not niveles:
+            self.levels = {
+                'BABY': {'SPEED': '0.15'},
+                'ENTHUSIAST': {'SPEED': '0.10', 'POISON_FOOD': '1', 'INVULNERABILITY_DURATION': '5'},
+                'NYAN': {'SPEED': '0.06', 'POISON_FOOD': '1', 'OBSTACLES': '5', 'INVULNERABILITY_DURATION': '5', 'TAIL_COLORS': ['#FF0000','#FF7F00','#FFFF00','#00FF00','#0000FF','#4B0082','#9400D3']}
+            }
+            niveles = list(self.levels.keys())
+
+        self.menu_frame = tk.Frame(self.root, bg='#111111')
+        self.menu_frame.place(x=0, y=0, width=self.ancho_canvas, height=self.alto_canvas)
+
+        label = tk.Label(self.menu_frame, text='Seleccione dificultad de Snake', bg='#111111', fg='white', font=('Consolas', 18, 'bold'))
+        label.pack(pady=20)
+
+        self.nivel_seleccion = tk.StringVar()
+        self.nivel_seleccion.set(niveles[0])
+
+        for lvl in niveles:
+            tk.Radiobutton(self.menu_frame, text=lvl, variable=self.nivel_seleccion, value=lvl, bg='#111111', fg='white', selectcolor='#333333', font=('Consolas', 14)).pack(anchor='w', padx=20)
+
+        boton = tk.Button(self.menu_frame, text='Iniciar Juego', command=self.seleccionar_nivel, bg='#00AA00', fg='white', font=('Consolas', 12, 'bold'))
+        boton.pack(pady=30)
+
+    def seleccionar_nivel(self):
+        self.current_level = self.nivel_seleccion.get()
+        self.level_config = self.levels.get(self.current_level, {})
+        self.aplicar_config_nivel()
+        self.nivel_seleccionado = True
+        if hasattr(self, 'menu_frame'):
+            try:
+                self.menu_frame.destroy()
+            except Exception:
+                pass
+        # Iniciar el juego ahora que hay un nivel seleccionado
+        self.ejecutar_evento('ON_START')
+        # Asegurar spawn inicial de elementos tras ON_START
+        if self.tipo_juego == 'SNAKE':
+            if not getattr(self, 'posicion_comida', None):
+                self.snake_spawn_comida()
+            if getattr(self, 'powerup_enabled', False) and not getattr(self, 'posicion_powerup', None):
+                self.snake_spawn_powerup()
+            if getattr(self, 'poison_enabled', False) and not getattr(self, 'posicion_poison', None):
+                self.snake_spawn_poison()
+        self.root.after(50, self.game_loop)
+
+    def aplicar_config_nivel(self):
+        self.tail_colors = self.level_config.get('TAIL_COLORS', []) if isinstance(self.level_config, dict) else []
+        self.is_nyan_mode = bool(self.tail_colors)
+        self.poison_enabled = bool(int(self.level_config.get('POISON_FOOD', '0') if self.level_config.get('POISON_FOOD') is not None else 0))
+        self.obstacles_enabled = bool(int(self.level_config.get('OBSTACLES', '0') if self.level_config.get('OBSTACLES') is not None else 0))
+        self.powerup_enabled = bool(int(self.level_config.get('INVULNERABILITY_DURATION', '0') if self.level_config.get('INVULNERABILITY_DURATION') is not None else 0))
+        try:
+            self.invulnerability_duration = float(self.level_config.get('INVULNERABILITY_DURATION', '0') or 0)
+        except Exception:
+            self.invulnerability_duration = 0
+        try:
+            self.velocidad_gravedad = float(self.level_config.get('SPEED', '0.15') or 0.15)
+        except Exception:
+            self.velocidad_gravedad = 0.15
+        if self.obstacles_enabled:
+            try:
+                self.snake_generar_obstaculos(int(self.level_config.get('OBSTACLES', '3')))
+            except Exception:
+                self.snake_generar_obstaculos(3)
+
+    def snake_generar_obstaculos(self, cantidad):
+        self.obstacle_positions = []
+        for _ in range(cantidad):
+            attempts = 0
+            while attempts < 200:
+                x = random.randint(1, self.ancho - 2)
+                y = random.randint(1, self.alto - 2)
+                if (x, y) not in self.serpiente_cuerpo and (x, y) != self.posicion_comida and (x, y) not in self.obstacle_positions:
+                    self.obstacle_positions.append((x, y))
+                    break
+                attempts += 1
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -476,4 +1161,3 @@ if __name__ == "__main__":
         sys.exit(1)
     juego = Juego(datos_juego)
     juego.run()
-    

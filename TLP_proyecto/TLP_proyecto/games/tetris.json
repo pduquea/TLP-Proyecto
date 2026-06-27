@@ -1,5 +1,6 @@
 {
   "levels": {}, 
+  "boss": {}, 
   "shapes": {
     "Z_PIECE": {
       "color": "#ff6b6b", 
@@ -73,7 +74,7 @@
           ]
         ]
       ], 
-      "type": "RECT", 
+      "type": null, 
       "chance": 2
     }, 
     "L_PIECE": {
@@ -216,7 +217,7 @@
           ]
         ]
       ], 
-      "type": "RECT", 
+      "type": null, 
       "chance": 3
     }, 
     "P_PIECE": {
@@ -240,7 +241,7 @@
           ]
         ]
       ], 
-      "type": "RECT", 
+      "type": null, 
       "chance": 3
     }, 
     "T_PIECE": {
@@ -315,7 +316,7 @@
           ]
         ]
       ], 
-      "type": "RECT", 
+      "type": null, 
       "chance": 2
     }, 
     "I_PIECE": {
@@ -374,7 +375,7 @@
           ]
         ]
       ], 
-      "type": "RECT", 
+      "type": null, 
       "chance": 2
     }, 
     "O_PIECE": {
@@ -391,7 +392,7 @@
           ]
         ]
       ], 
-      "type": "RECT", 
+      "type": null, 
       "chance": 3
     }
   }, 
@@ -399,7 +400,6 @@
   "powerups": {
     "BONUS_STAR": {
       "color": "#ffd700", 
-      "duration": null, 
       "estados": [
         [
           [
@@ -407,6 +407,7 @@
           ]
         ]
       ], 
+      "type": null, 
       "chance": 1
     }
   }, 
@@ -430,7 +431,12 @@
       {
         "params": [], 
         "accion": "ROTATE", 
-        "objeto": "CURRENT_PIECE"
+        "objeto": null
+      }, 
+      {
+        "params": [], 
+        "accion": "CURRENT_PIECE", 
+        "objeto": null
       }
     ], 
     "ON_TICK": [

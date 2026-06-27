@@ -1,0 +1,38 @@
+<programa> ::= <tipo_juego> <grid> <definiciones> <eventos>
+
+<tipo_juego> ::= "GAME_TYPE" "BRICK_TANKS"
+<grid> ::= "GAME_GRID" "(" <numero> "," <numero> ")"
+<definiciones> ::= <definicion_shape> | <definicion_powerup> | <definicion_boss> | <definicion_shape> <definiciones> | <definicion_powerup> <definiciones> | <definicion_boss> <definiciones>
+<eventos> ::= <evento> | <evento> <eventos>
+
+<definicion_shape> ::= "DEFINE" "SHAPE" <identificador> ":" <estados> <propiedades_shape> "END"
+<definicion_powerup> ::= "DEFINE" "POWERUP" <identificador> ":" <estados> <propiedades_shape> "END"
+<definicion_boss> ::= "DEFINE" "BOSS" <identificador> ":" <estados> <propiedades_boss> "END"
+<propiedades_shape> ::= <propiedad_shape> | <propiedad_shape> <propiedades_shape>
+<propiedad_shape> ::= "COLOR" ":" <color> | "TYPE" ":" <tipo_shape> | "RESISTANCE" ":" <numero> | "DAMAGE" ":" <numero>
+<propiedades_boss> ::= <propiedad_boss> | <propiedad_boss> <propiedades_boss>
+<propiedad_boss> ::= "COLOR" ":" <color> | "HP" ":" <numero> | "DAMAGE" ":" <numero> | "TYPE" ":" <tipo_shape>
+
+<tipo_shape> ::= "CIRCLE" | "RECT" | "TRI" | "PLAYER" | "ENEMY" | "BULLET"
+<color> ::= "#" <digito_hex> <digito_hex> <digito_hex> <digito_hex> <digito_hex> <digito_hex>
+<digito_hex> ::= "0"..."9" | "A"..."F" | "a"..."f"
+
+<estados> ::= <estado> | <estado> <estados>
+<estado> ::= "STATE" <numero> ":" <matriz>
+<matriz> ::= <fila> | <fila> <matriz>
+<fila> ::= "[" <valores_fila> "]"
+<valores_fila> ::= <numero> | <numero> "," <valores_fila>
+
+<evento> ::= "ON" <nombre_evento_tank> ":" <acciones_tank> "END"
+<nombre_evento_tank> ::= "START" | "TICK" | "TARGET_SCORE" | "KEY_UP" | "KEY_DOWN" | "KEY_LEFT" | "KEY_RIGHT"
+<acciones_tank> ::= <accion_tank> | <accion_tank> <acciones_tank>
+<accion_tank> ::= <accion_spawn> | <accion_mover> | <accion_disparar>
+<accion_spawn> ::= "SPAWN" <identificador> "AT" <posicion>
+<accion_mover> ::= "MOVE" <identificador> <direccion>
+<accion_disparar> ::= "SHOOT" <identificador> <direccion>
+<posicion> ::= "RANDOM" | "(" <numero> "," <numero> ")"
+<direccion> ::= "UP" | "DOWN" | "LEFT" | "RIGHT" | "FORWARD"
+<identificador> ::= <letra> | <letra> <identificador>
+<numero> ::= <digito> | <digito> <numero>
+<letra> ::= "A"..."Z" | "_"
+<digito> ::= "0"..."9"

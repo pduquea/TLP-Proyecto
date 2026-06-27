@@ -1,0 +1,243 @@
+DOCUMENTO TÉCNICO: LÓGICA DE COLISIÓN CON NUBES Y GESTIÓN DE TIEMPO DE POWER-UP
+
+Fecha: Junio 2, 2026
+Proyecto: Snake Evolved - Colisiones con nubes y power-up de invulnerabilidad
+
+
+1. IMPLEMENTACIÓN DE LA COLISIÓN CON NUBES
+
+Descripción
+- Las nubes se modelan como objetos estáticos en la cuadrícula de Snake.
+- Cada nube ocupa una celda del tablero y se representa con un cuerpo rectangular.
+- La colisión se detecta al mover la cabeza de la serpiente hacia una posición ocupada por una nube.
+
+Comportamiento
+- Si el jugador choca contra una nube, se aplica una penalización fija de 50 puntos.
+- Si el power-up de invulnerabilidad está activo, el choque no termina el juego.
+- Si no hay invulnerabilidad y el puntaje llega a 0 tras el choque, se desencadena GAME OVER.
+
+Detalles técnicos
+- El método de movimiento de la serpiente verifica la nueva posición de la cabeza antes de insertar el segmento.
+- La detección de nube se realiza con una búsqueda en la lista `self.obstacle_positions`.
+- El resultado de la colisión se decide en `snake_mover_jugador()`:
+   * nubes + invulnerable = resta 50 puntos, continúa juego
+   * nubes + no invulnerable = resta 50 puntos, GAME OVER si puntos <= 0
+
+
+2. GESTIÓN DEL TIEMPO DEL POWER-UP DE INVULNERABILIDAD
+
+Descripción
+- El power-up otorga invulnerabilidad temporal al jugador.
+- Se expectora como un objeto amarillo en la cuadrícula y reaparece tras su consumo.
+
+Mecánica de tiempo
+- Al consumir el power-up, se activa `self.invulnerable = True`.
+- Se inicializa `self.invulnerable_tiempo` con la duración definida en el nivel.
+- Cada ciclo del bucle de juego decrementa el temporizador en 0.05 segundos.
+- Cuando el temporizador llega a cero, `self.invulnerable` se desactiva.
+
+Detalles técnicos
+- La variable `self.velocidad_gravedad` controla el ciclo de actualización del juego.
+- El bucle principal (`game_loop()`) siempre llama a la función de temporización.
+- La lógica de decremento está integrada en:
+   `if self.invulnerable_tiempo > 0: self.invulnerable_tiempo -= 0.05`
+- El cambio de estado es inmediato y persiste hasta la siguiente iteración.
+
+
+3. REPARTO DE APORTE POR INTEGRANTE
+
+Simon
+- Definió la lógica de detección de colisión contra nubes.
+- Implementó la penalización de puntos y la condición de GAME OVER asociada.
+
+Estefania
+- Diseñó el comportamiento del power-up de invulnerabilidad.
+- Implementó el temporizador decremental y la transición de estado invulnerable/no invulnerable.
+
+Pedro
+- Integró la gestión de nubes en el bucle de movimiento de la serpiente.
+- Configuró la verificación de posiciones y la lista de obstáculos (`self.obstacle_positions`).
+
+Sara
+- Manejó la lógica de reaparecimiento de power-up y la persistencia de estado.
+- Validó la interacción entre invulnerabilidad y los eventos de colisión con nubes.
+
+
+4. RESULTADO ESPERADO
+
+- La serpiente puede chocar contra nubes sin perder inmediatamente si tiene invulnerabilidad activa.
+- El power-up dura exactamente el tiempo configurado y se desactiva automáticamente.
+- El motor mantiene una lógica simple y consistente entre colisión, puntaje y estado temporal.
+- Los aportes del equipo están repartidos de forma equilibrada y clara.
+
+     * Respawnea poison si está enabled
+     * NOTA: Si ya tenías 0 puntos, comer veneno no causa game over
+   
+   - ON_EAT_POWERUP: 
+     * Activa invulnerabilidad: self.invulnerable = True
+     * Asigna timer: self.invulnerable_tiempo = 7 segundos
+     * Respawnea powerup (siempre, no depende de flag)
+   
+   - ON_COLLISION_OBSTACLE: 
+     * Si puntos <= 0: GAME OVER
+     * Si puntos > 0: resta 50 puntos (a menos que esté invulnerable)
+     * Si invulnerable: solo resta 50 puntos, no muere
+
+
+4. CAMBIOS EN DEFINICIÓN DEL JUEGO (games/snake.brick)
+
+A. DEFINICIÓN DE NIVELES
+   ```
+   DEFINE LEVELS:
+   LEVEL BABY:
+   SPEED: 0.15
+   POISON_FOOD: 0
+   OBSTACLES: 0
+   INVULNERABILITY_DURATION: 0
+   END
+
+   LEVEL ENTHUSIAST:
+   SPEED: 0.10
+   POISON_FOOD: 1
+   OBSTACLES: 0
+   INVULNERABILITY_DURATION: 7
+   END
+
+   LEVEL NYAN:
+   SPEED: 0.06
+   POISON_FOOD: 1
+   OBSTACLES: 5
+   INVULNERABILITY_DURATION: 7
+   TAIL_COLORS: [#FF0000,#FF7F00,#FFFF00,#00FF00,#0000FF,#4B0082,#9400D3]
+   END
+   END
+   ```
+
+B. NIVELES IMPLEMENTADOS
+
+   1. BABY (Por defecto)
+      - Velocidad: 0.15 segundos/tick (más lenta)
+      - Frutas venenosas: NO (POISON_FOOD: 0)
+      - Obstáculos: NO (OBSTACLES: 0)
+      - Power-up: NO (INVULNERABILITY_DURATION: 0)
+      - Propósito: Tutorial / Aprendizaje
+      - Retrocompatibilidad: Los archivos .brick antiguos sin LEVELS asumen este nivel
+
+   2. ENTHUSIAST (Medio)
+      - Velocidad: 0.10 segundos/tick (media)
+      - Frutas venenosas: SÍ (POISON_FOOD: 1)
+      - Obstáculos: NO (OBSTACLES: 0)
+      - Power-up: SÍ - 7 segundos de invulnerabilidad (INVULNERABILITY_DURATION: 7)
+      - Propósito: Desafío intermedio
+      - Mecánicas: Requiere evitar poison, recolectar powerups para protección
+
+   3. NYAN (Máxima dificultad)
+      - Velocidad: 0.06 segundos/tick (más rápida)
+      - Frutas venenosas: SÍ (POISON_FOOD: 1)
+      - Obstáculos: SÍ - 5 obstáculos (OBSTACLES: 5)
+      - Power-up: SÍ - 7 segundos de invulnerabilidad (INVULNERABILITY_DURATION: 7)
+      - Cola multicolor: SÍ (TAIL_COLORS con 7 colores arcoíris)
+      - Propósito: Máximo reto
+      - Mecánicas: Velocidad alta + múltiples amenazas + invulnerabilidad temporal
+
+C. DEFINICIÓN DE SHAPES
+   - PIXEL: verde (#00FF00), tipo CIRCLE
+   - TRIANGLE: verde claro (#33CC33), tipo TRI
+
+D. EVENTOS REMOVIDOS (Para usar handlers por defecto)
+   - ON_EAT_POISON: REMOVIDO - ahora usa handler por defecto de runtime.py
+   - ON_EAT_POWERUP: REMOVIDO - ahora usa handler por defecto de runtime.py
+   - RAZÓN: Los handlers por defecto incluyen la lógica correcta de respawn
+   - BENEFICIO: Código más limpio, manejo centralizado de respawns
+
+
+5. VERIFICACIÓN DE REQUISITOS DE LA ACTIVIDAD 4
+
+A. PERSONALIZACIÓN GEOMÉTRICA DE LA SERPIENTE 
+   [A1] Circular: Implementado - type='CIRCLE' en shapes
+   [A2] Triangular: Implementado - type='TRI' en shapes
+   [A3] Cabeza Especial (Nyan): Implementado - círculo verde con orejas de gato
+   [A4] Cola multicolor (Nyan): Implementado - usando TAIL_COLORS[i % len(colors)]
+
+B. SISTEMA DE FRUTAS Y OBSTÁCULOS 
+   [B1] Frutas Venenosas: Implementado
+        - Color: #9933FF (morado)
+        - Penalización: -10 puntos
+        - Game over: Sí, cuando puntos <= 0
+        - Spawnean en todos los niveles excepto BABY
+   
+   [B2] Nubes Obstáculo: Implementado
+        - Color: #555555 (gris)
+        - Forma: Rectángulo
+        - Penalización: -50 puntos
+        - Game over: Sí, cuando puntos <= 0
+        - Cantidad: 5 en nivel NYAN, 0 en otros
+   
+   [B3] Power-Up "No Morir": Implementado
+        - Color: #FFFF00 (amarillo)
+        - Duración: 7 segundos (configurable)
+        - Efecto: Invulnerabilidad temporal
+        - Habilitado en niveles ENTHUSIAST y NYAN
+
+C. NIVELES DE DIFICULTAD DESDE LA GRAMÁTICA 
+   [C1] Baby (Por defecto): 
+        - Velocidad moderada (0.15)
+        - Sin frutas venenosas (POISON_FOOD: 0)
+        - Sin obstáculos (OBSTACLES: 0)
+        - Sin powerup (INVULNERABILITY_DURATION: 0)
+   
+   [C2] Entusiasta: 
+        - Frutas venenosas activadas (POISON_FOOD: 1)
+        - Power-up con 7 segundos de duración (INVULNERABILITY_DURATION: 7)
+        - Velocidad media (0.10)
+   
+   [C3] Nyan Cat: 
+        - Máxima dificultad (SPEED: 0.06 - más rápido)
+        - Obstáculos dinámicos (OBSTACLES: 5)
+        - Frutas venenosas (POISON_FOOD: 1)
+        - Power-up 7 segundos (INVULNERABILITY_DURATION: 7)
+        - Cola multicolor (TAIL_COLORS con 7 colores)
+        - Mecánicas especiales: pierde puntos en colisiones pero sigue vivo
+
+D. RETROCOMPATIBILIDAD 
+   - Archivos .brick sin DEFINE LEVELS funcionan como BABY
+   - Asignación por defecto: self.current_level = 'BABY'
+   - Configuración aplicada: velocidad 0.15, sin poison/obstacles/powerup
+
+E. ANÁLISIS DE ARQUITECURA 
+   [E1] snake.bnf: Incluye reglas LEVELS, duración powerup, tipos SHAPE
+   [E2] compiler.py: Parsea niveles, convierte tipos, soporta decimales
+   [E3] runtime.py: Menú de selección, manejador de timers, renderizado dinámico
+
+
+7. ARCHIVOS MODIFICADOS
+
+1. snake.bnf
+   - Nuevas reglas: <definicion_levels>, <definicion_level>, <propiedad_nivel>
+   - Actualización: Soporte de decimales y nuevos eventos
+
+2. compiler.py
+   - Nuevos métodos: parsear_levels(), parsear_level(), 
+     parsear_propiedades_nivel(), parsear_lista_colores()
+   - Método mejorado: parsear_evento()
+   - Actualización: lexer() para decimales
+
+3. runtime.py
+   - Nuevos métodos: mostrar_menu_nivel(), aplicar_config_nivel(),
+     snake_spawn_poison(), snake_spawn_powerup(), snake_generar_obstaculos()
+   - Métodos mejorados: __init__() (SNAKE), dibujar(), game_loop(),
+     snake_mover_jugador(), ejecutar_evento()
+   - Nuevos atributos: levels, current_level, level_config, invulnerable,
+     invulnerable_tiempo, poison_enabled, obstacles_enabled, powerup_enabled,
+     is_nyan_mode, tail_colors, obstacle_positions, posicion_poison,
+     posicion_powerup
+
+4. snake.brick
+   - Nueva estructura: DEFINE LEVELS con 3 niveles (BABY, ENTHUSIAST, NYAN)
+   - Nuevas propiedades: SPEED, POISON_FOOD, OBSTACLES, 
+     INVULNERABILITY_DURATION, TAIL_COLORS
+   - EVENTOS REMOVIDOS: ON_EAT_POISON y ON_EAT_POWERUP
+   - RAZÓN: Para usar handlers por defecto de runtime.py que incluyen respawn automático
+   - Eventos restantes: ON_START, ON_TICK, ON_EAT_FOOD, ON_COLLISION_WALL,
+     ON_COLLISION_SELF, ON_COLLISION_OBSTACLE, ON_KEY_* (controles)
+

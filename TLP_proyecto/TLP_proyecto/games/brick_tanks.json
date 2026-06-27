@@ -1,0 +1,257 @@
+{
+  "levels": {}, 
+  "boss": {
+    "color": "#800080", 
+    "hp": 6, 
+    "estados": [
+      [
+        [
+          1, 
+          1, 
+          1, 
+          1, 
+          1
+        ]
+      ], 
+      [
+        [
+          1, 
+          1, 
+          1, 
+          1, 
+          1
+        ]
+      ], 
+      [
+        [
+          1, 
+          1, 
+          1, 
+          1, 
+          1
+        ]
+      ], 
+      [
+        [
+          1, 
+          1, 
+          1, 
+          1, 
+          1
+        ]
+      ]
+    ], 
+    "damage": 1, 
+    "BOSS_TANK": {
+      "color": "#800080", 
+      "estados": [
+        [
+          [
+            1, 
+            1, 
+            1, 
+            1, 
+            1
+          ]
+        ], 
+        [
+          [
+            1, 
+            1, 
+            1, 
+            1, 
+            1
+          ]
+        ], 
+        [
+          [
+            1, 
+            1, 
+            1, 
+            1, 
+            1
+          ]
+        ], 
+        [
+          [
+            1, 
+            1, 
+            1, 
+            1, 
+            1
+          ]
+        ]
+      ], 
+      "type": "RECT", 
+      "hp": 6, 
+      "damage": 1
+    }
+  }, 
+  "shapes": {
+    "PLAYER_TANK": {
+      "color": "#1E90FF", 
+      "estados": [
+        [
+          [
+            1
+          ]
+        ]
+      ], 
+      "type": "PLAYER", 
+      "chance": 1, 
+      "resistance": 3
+    }, 
+    "ENEMY_TANK": {
+      "color": "#FF4D4D", 
+      "damage": 1, 
+      "resistance": 2, 
+      "chance": 1, 
+      "estados": [
+        [
+          [
+            1
+          ]
+        ]
+      ], 
+      "type": "ENEMY"
+    }, 
+    "BULLET": {
+      "color": "#FFFFFF", 
+      "estados": [
+        [
+          [
+            1
+          ]
+        ]
+      ], 
+      "type": "BULLET", 
+      "chance": 1
+    }
+  }, 
+  "tipo_juego": "BRICK_TANKS", 
+  "powerups": {
+    "HAMMER": {
+      "color": "#FFD700", 
+      "estados": [
+        [
+          [
+            1
+          ]
+        ]
+      ], 
+      "type": "CIRCLE", 
+      "chance": 1
+    }
+  }, 
+  "config": {
+    "grid_size": [
+      12, 
+      18
+    ]
+  }, 
+  "events": {
+    "ON_KEY_DOWN": [
+      {
+        "params": [
+          "DOWN"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "PLAYER_TANK"
+      }
+    ], 
+    "ON_KEY_RIGHT": [
+      {
+        "params": [
+          "RIGHT"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "PLAYER_TANK"
+      }
+    ], 
+    "ON_TICK": [
+      {
+        "params": [
+          "DOWN"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "ENEMY_TANK"
+      }, 
+      {
+        "params": [
+          "FORWARD"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "BULLET"
+      }
+    ], 
+    "ON_TARGET_SCORE": [
+      {
+        "params": [
+          [
+            5, 
+            2
+          ]
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "BOSS"
+      }
+    ], 
+    "ON_START": [
+      {
+        "params": [
+          [
+            5, 
+            15
+          ]
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "PLAYER_TANK"
+      }, 
+      {
+        "params": [
+          [
+            3, 
+            1
+          ]
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "ENEMY_TANK"
+      }, 
+      {
+        "params": [
+          [
+            8, 
+            1
+          ]
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "ENEMY_TANK"
+      }, 
+      {
+        "params": [
+          "RANDOM"
+        ], 
+        "accion": "SPAWN", 
+        "objeto": "HAMMER"
+      }
+    ], 
+    "ON_KEY_UP": [
+      {
+        "params": [
+          "UP"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "PLAYER_TANK"
+      }
+    ], 
+    "ON_KEY_LEFT": [
+      {
+        "params": [
+          "LEFT"
+        ], 
+        "accion": "MOVE", 
+        "objeto": "PLAYER_TANK"
+      }
+    ]
+  }
+}
