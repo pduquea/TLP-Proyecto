@@ -1,0 +1,78 @@
+Resumen breve - Brick Tanks
+
+Qué hicimos:
+- Añadimos un modo de juego tipo tanque con jugador, enemigos, balas, powerups y un jefe final.
+- El jugador dispara balas que quitan 1 punto de vida; el jefe tiene 10 puntos y necesita 10 disparos para morir.
+- La bola amarilla (powerup) cura una vida al ser alcanzada por la bala del jugador.
+
+Diferencia entre jugador y enemigos (en palabras simples):
+- El jugador se controla con las teclas y sus balas son creadas por 'tank_player_shoot()'.
+- Los enemigos se mueven y disparan por su IA (`tank_update_ai()`); sus balas usan el valor 'damage' del enemigo.
+
+Dónde está lo importante (archivo principal): 'runtime.py' (funciones: 'tank_spawn_entity', 'tank_player_shoot', 'tank_move_bullets', 'tank_update_bullets', 'tank_update_ai', 'dibujar').
+
+Asignación de tareas:
+- Simon: lógica de creación de entidades y definir campos básicos ('tank_spawn_entity').
+- Sara: sistema de balas y movimiento de balas ('tank_player_shoot', 'tank_shoot', 'tank_move_bullets').
+- Estefania: colisiones, aplicación de daño y powerup cura ('tank_update_bullets', TTL de impactos).
+- Pedro: IA del juego y lógica del jefe (spawn, comportamiento y conteo de muertes) ('tank_update_ai', 'tank_spawn_boss').
+
+Notas para probar:
+- Ejecutar el juego y disparar al jefe 10 veces; comprobar que la vida baja 1 por bala.
+- Disparar la bola amarilla para comprobar que cura al jugador.
+
+
+Informe de diseño - Brick  
+
+Introducción y objetivo
+
+1) Concepto básico y dónde mirar
+- Archivo principal: `runtime.py`.
+- Listas clave: `tank_entities` (entidades: jugador, enemigos, jefe, powerups) y `tank_bullets` (balas).
+
+2) Diferencia entre tanque jugador y tanques enemigos 
+- Identificación: cada entidad tiene el campo `kind` con valores como 'player', 'enemy' o 'boss'.
+- Creación: `tank_spawn_entity` crea todas las entidades y asigna `kind`, `health`, `max_health` y `damage` según la definición del juego. El jugador se guarda en `self.tank_player`.
+- Control:
+	- Jugador: se mueve por las teclas que captura la GUI; sus órdenes pasan por `tank_move_entity`.
+	- Enemigos: se mueven y deciden disparar mediante la rutina `tank_update_ai()`; no responden a las teclas.
+- Disparo:
+	- Las balas del jugador salen de `tank_player_shoot()` y siempre llevan `damage = 1`.
+	- Las balas enemigas salen de `tank_enemy_shoot()` o `tank_boss_shoot()` y usan `damage` definido por el enemigo.
+
+3) Lógica de colisiones y daño (resumen)
+- Movimiento de balas: `tank_move_bullets` actualiza la posición de cada bala una vez por tick.
+- Detección de impacto y aplicación de daño: `tank_update_bullets`.
+	- Si bala choca con muro: muro destruido, bala eliminada.
+	- Si bala del jugador choca con `powerup` (bola amarilla): powerup eliminado y jugador gana +1 vida (hasta `max_health`).
+	- Si bala golpea entidad distinta a su `owner`: se resta `bullet['damage']` a `entity['health']`.
+	- Si `health` ≤ 0: entidad eliminada; si es enemigo, se llama a `tank_handle_enemy_defeat`.
+	- Después del impacto se crea un pequeño sprite de impacto con `ttl` para feedback visual.
+
+4) Lógica del Final Boss (vida y aparición)
+- Aparición: tras cumplirse condiciones (p.ej. número de enemigos derrotados o puntuación), se activa `tank_boss_warning` y, pasado el tiempo, se instancia el boss con `tank_spawn_boss_immediate()`.
+- Vida: el boss se crea con `health` y `max_health` desde los datos del juego (configurado en `games/`). En nuestra versión el boss tiene `hp = 10`.
+- Daño: cada bala del jugador resta `bullet['damage']` (1) al boss, por lo que hacen falta 10 impactos para matarlo. Al morir se marca `tank_boss_defeated`.
+
+5) IA y comportamiento (visión general)
+- La IA actual es simple: `tank_update_ai` mueve enemigos de forma limitada y decide cuándo disparar. El boss tiene movimientos más lentos y un patrón de disparo separado (`tank_boss_shoot`).
+
+6) Reparto de aportes (qué hizo cada integrante)
+- Simon:
+	- Definió la estructura de entidades y la función de creación `tank_spawn_entity` (campos `kind`, `health`, `max_health`, `damage`).
+
+- Sara:
+	- Implementó el sistema de disparo y movimiento de balas: `tank_player_shoot`, `tank_shoot`, `tank_move_bullets`.
+
+- Estefania:
+	- Implementó colisiones y daño en `tank_update_bullets`, manejo del powerup curativo y los efectos de impacto (`ttl`).
+
+- Pedro:
+	- Implementó la IA y la lógica del jefe: `tank_update_ai`, `tank_spawn_boss`, `tank_boss_shoot`, `tank_handle_enemy_defeat`.
+
+7) Cómo probar rápidamente
+1. Ejecutar `runtime.py` con el juego `brick_tanks`.
+2. Disparar al boss y verificar que la barra baja 1 por cada bala del jugador; el boss debe morir tras 10 impactos.
+3. Disparar la bola amarilla para comprobar que cura 1 vida al jugador (hasta `max_health`).
+
+

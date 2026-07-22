@@ -2,7 +2,7 @@
   "levels": {}, 
   "boss": {
     "color": "#800080", 
-    "hp": 6, 
+    "hp": 10, 
     "estados": [
       [
         [
@@ -83,7 +83,7 @@
         ]
       ], 
       "type": "RECT", 
-      "hp": 6, 
+      "hp": 10, 
       "damage": 1
     }
   }, 

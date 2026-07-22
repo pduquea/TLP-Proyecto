@@ -10,6 +10,9 @@ if "%1"=="" (
     echo  Uso: jugar [nombre_del_juego]
     echo  Ejemplo: jugar snake
     echo  Ejemplo: jugar tetris
+    echo  Ejemplo: jugar brick_tanks
+    echo.
+    echo  Juegos disponibles: snake, tetris, brick_tanks
     echo.
     goto :eof
 )

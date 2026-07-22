@@ -143,6 +143,9 @@ class Juego:
             self.tank_player = None
             self.tank_boss_defeated = False
             self.tank_ai_tick = 0
+            self.tank_boss_warning = False
+            self.tank_boss_warning_ticks = 0
+            self.tank_boss_warning_text = ''
             self.tank_enemies_defeated = 0
             self.tank_kills_to_boss = 3
             self.tank_spawn_walls()
@@ -310,12 +313,21 @@ class Juego:
                     self.dibujar_celda(x, y, color, shape=shape)
 
         if self.tipo_juego == 'BRICK_TANKS':
+            if getattr(self, 'tank_boss_warning', False) or getattr(self, 'tank_boss_spawned', False):
+                self.canvas.create_text(self.ancho_canvas / 2, 12,
+                                        text=getattr(self, 'tank_boss_warning_text', ''),
+                                        fill='#FFCC00', font=('Consolas', 14, 'bold'),
+                                        anchor='n', width=self.ancho_canvas - 20)
             for wall in getattr(self, 'tank_walls', []):
                 self.dibujar_celda(wall['x'], wall['y'], '#8B5A2B')
             for bullet in getattr(self, 'tank_bullets', []):
                 self.dibujar_celda(bullet['x'], bullet['y'], bullet.get('color', '#FFFFFF'), shape=bullet.get('shape', 'CIRCLE'))
             for entity in getattr(self, 'tank_entities', []):
-                self.dibujar_celda(entity['x'], entity['y'], entity.get('color', '#00FFFF'), shape=entity.get('shape'))
+                if entity.get('kind') == 'boss':
+                    self.dibujar_boss(entity)
+                else:
+                    self.dibujar_celda(entity['x'], entity['y'], entity.get('color', '#00FFFF'), shape=entity.get('shape'))
+                self.dibujar_barra_vida(entity)
 
     def dibujar_celda(self, x, y, color, shape=None):
         ts = self.taman_celda 
@@ -332,6 +344,43 @@ class Juego:
             self.canvas.create_polygon(points, fill=color, outline='#000000')
         else:
             self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='#000000')
+
+    def dibujar_barra_vida(self, entity):
+        max_health = entity.get('max_health', 0)
+        current_health = entity.get('health', 0)
+        if max_health <= 0 or entity.get('kind') not in ('player', 'enemy', 'boss'):
+            return
+        ts = self.taman_celda
+        width_cells = 3 if entity.get('kind') == 'boss' else 1
+        bar_width = ts * width_cells
+        bar_height = 4
+        bar_x = entity['x'] * ts
+        bar_y = max(0, entity['y'] * ts - bar_height - 2)
+        fill_ratio = max(0.0, min(1.0, float(current_health) / float(max_health)))
+        self.canvas.create_rectangle(bar_x, bar_y, bar_x + bar_width, bar_y + bar_height, fill='#333333', outline='')
+        if fill_ratio > 0:
+            fill_color = '#00FF00' if fill_ratio > 0.5 else '#FFFF00' if fill_ratio > 0.25 else '#FF3333'
+            self.canvas.create_rectangle(bar_x, bar_y, bar_x + int(bar_width * fill_ratio), bar_y + bar_height, fill=fill_color, outline='')
+
+    def dibujar_boss(self, entity):
+        color = entity.get('color', '#800080')
+        base_x = entity.get('x', 0)
+        base_y = entity.get('y', 0)
+        for dx in (-1, 0, 1):
+            for dy in (0, 1):
+                px = base_x + dx
+                py = base_y + dy
+                if 0 <= px < self.ancho and 0 <= py < self.alto:
+                    self.dibujar_celda(px, py, color, shape='RECT')
+        turret_x = base_x
+        turret_y = base_y - 1
+        if 0 <= turret_x < self.ancho and 0 <= turret_y < self.alto:
+            self.dibujar_celda(turret_x, turret_y, '#BA55D3', shape='RECT')
+        for dx in (-1, 1):
+            px = base_x + dx
+            py = base_y + 1
+            if 0 <= px < self.ancho and 0 <= py < self.alto:
+                self.dibujar_celda(px, py, '#4B0082', shape='RECT')
 
 
     def ejecutar_evento(self, nombre_evento):
@@ -545,7 +594,8 @@ class Juego:
                 'kind': 'boss',
                 'x': x,
                 'y': y,
-                'health': int(boss_data.get('hp', 5)),
+                'health': int(boss_data.get('hp', 10)),
+                'max_health': int(boss_data.get('hp', 10)),
                 'damage': int(boss_data.get('damage', 2)),
                 'color': boss_data.get('color', '#800080'),
                 'shape': 'RECT',
@@ -589,9 +639,9 @@ class Juego:
         elif entity_kind == 'player':
             health = 3
         elif entity_kind == 'boss':
-            health = 6
+            health = int(boss_data.get('hp', 10))
         elif entity_kind == 'enemy':
-            health = 2
+            health = int(shape_data.get('resistance', 2))
         else:
             resistance = shape_data.get('resistance', shape_data.get('health', 3))
             try:
@@ -618,14 +668,17 @@ class Juego:
             'x': x,
             'y': y,
             'health': health,
+            'max_health': health,
             'color': shape_data.get('color', '#00FFFF'),
             'shape': shape_name,
             'direction': (0, -1) if entity_kind == 'player' else (0, 1),
         }
         if entity_kind == 'enemy':
             entity['next_shot_time'] = time.time() + 1.2 + (x % 3) * 0.2
+            entity['damage'] = int(shape_data.get('damage', 1))
         elif entity_kind == 'boss':
             entity['next_shot_time'] = time.time() + 1.6
+            entity['damage'] = int(boss_data.get('damage', 1))
         self.tank_entities.append(entity)
         if entity_kind == 'player':
             self.tank_player = entity
@@ -678,12 +731,15 @@ class Juego:
                 entity['next_shot_time'] = now + 2.2 + random.random() * 0.6
 
             dx, dy = self.tank_delta_por_direccion(direction or ('UP' if entity['kind'] == 'player' else 'DOWN'), entity)
+            # Ensure player bullets carry explicit damage so boss takes 1 per hit
+            bullet_damage = 1 if entity.get('kind') == 'player' else int(entity.get('damage', 1))
             self.tank_bullets.append({
                 'x': entity['x'],
                 'y': entity['y'],
                 'dx': dx,
                 'dy': dy,
                 'owner': entity['kind'],
+                'damage': bullet_damage,
                 'color': '#FF4D4D' if entity['kind'] == 'player' else '#FFFFFF',
                 'shape': 'CIRCLE',
             })
@@ -701,6 +757,7 @@ class Juego:
             'dx': 0,
             'dy': -1,
             'owner': 'player',
+            'damage': 1,
             'color': '#FF4D4D',
             'shape': 'CIRCLE',
         })
@@ -752,6 +809,7 @@ class Juego:
         if self.tipo_juego != 'BRICK_TANKS':
             return
         self.tank_ai_tick += 1
+        self.tank_update_boss_warning()
 
         enemy_count = sum(1 for entity in self.tank_entities if entity.get('kind') == 'enemy')
         if enemy_count < 3 and not self.tank_boss_spawned and self.tank_ai_tick % 20 == 0:
@@ -801,6 +859,8 @@ class Juego:
             'dx': dx,
             'dy': 1,
             'owner': 'enemy',
+            'source_type': 'enemy',
+            'damage': entity.get('damage', 1),
             'shape': 'CIRCLE',
         })
 
@@ -811,19 +871,41 @@ class Juego:
             'dx': 0,
             'dy': 1,
             'owner': 'enemy',
-            'color': '#FFFFFF',
+            'source_type': 'boss',
+            'damage': entity.get('damage', 99),
             'color': '#FFFFFF',
             'shape': 'CIRCLE',
         })
 
     def tank_spawn_boss(self):
+        if self.tank_boss_spawned or self.tank_boss_warning:
+            return
+        boss_data = self.tank_get_boss_data()
+        if not boss_data:
+            return
+        self.tank_boss_warning = True
+        self.tank_boss_warning_ticks = 40
+        self.tank_boss_warning_text = '¡ADVERTENCIA! EL JEFE FINAL LLEGA...'
+
+    def tank_spawn_boss_immediate(self):
         if self.tank_boss_spawned:
             return
         boss_data = self.tank_get_boss_data()
         if not boss_data:
             return
+        self.tank_boss_warning = False
+        self.tank_boss_warning_ticks = 0
+        self.tank_boss_warning_text = ''
         self.tank_boss_spawned = True
         self.ejecutar_evento('ON_TARGET_SCORE')
+        self.tank_boss_warning_text = '¡Jefe final activo! Derríbalo ahora.'
+
+    def tank_update_boss_warning(self):
+        if not getattr(self, 'tank_boss_warning', False):
+            return
+        self.tank_boss_warning_ticks -= 1
+        if self.tank_boss_warning_ticks <= 0:
+            self.tank_spawn_boss_immediate()
 
     def tank_handle_enemy_defeat(self, entity):
         if not entity or entity.get('kind') != 'enemy':
@@ -838,21 +920,44 @@ class Juego:
             self.tank_spawn_boss()
 
     def tank_update_bullets(self):
+        # Bullet movement is handled by `tank_move_bullets()` called from ON_TICK.
+        # Here we only process collisions and transient bullets (impact TTL).
         for bullet in list(self.tank_bullets):
-            bullet['x'] += bullet['dx']
-            bullet['y'] += bullet['dy']
+            # TTL handling for temporary impact sprites
+            if 'ttl' in bullet:
+                try:
+                    bullet['ttl'] -= 1
+                except Exception:
+                    bullet['ttl'] = 0
+                if bullet['ttl'] <= 0:
+                    try:
+                        self.tank_bullets.remove(bullet)
+                    except Exception:
+                        pass
+                    continue
+
+            # Remove bullets out of bounds (they may have been moved earlier this tick)
             if not (0 <= bullet['x'] < self.ancho and 0 <= bullet['y'] < self.alto):
-                self.tank_bullets.remove(bullet)
+                try:
+                    self.tank_bullets.remove(bullet)
+                except Exception:
+                    pass
                 continue
 
             impactado = False
             for wall in list(self.tank_walls):
                 if wall['x'] == bullet['x'] and wall['y'] == bullet['y']:
-                    self.tank_walls.remove(wall)
+                    try:
+                        self.tank_walls.remove(wall)
+                    except Exception:
+                        pass
                     impactado = True
                     break
             if impactado:
-                self.tank_bullets.remove(bullet)
+                try:
+                    self.tank_bullets.remove(bullet)
+                except Exception:
+                    pass
                 continue
 
             for entity in list(self.tank_entities):
@@ -860,33 +965,47 @@ class Juego:
                     continue
                 if entity['kind'] == 'powerup':
                     if bullet.get('owner') == 'player':
-                        self.tank_entities.remove(entity)
+                        try:
+                            self.tank_entities.remove(entity)
+                        except Exception:
+                            pass
                         if self.tank_player:
-                            self.tank_player['health'] = min(3, self.tank_player['health'] + 1)
+                            max_hp = self.tank_player.get('max_health', 3)
+                            self.tank_player['health'] = min(max_hp, self.tank_player['health'] + 1)
                         self.puntuacion += 50
                     impactado = True
                     break
                 if entity['kind'] != bullet['owner']:
                     if entity['kind'] == 'boss':
-                        entity['health'] -= 1
+                        damage = bullet.get('damage', 1)
+                        entity['health'] -= damage
                         if entity['health'] <= 0:
-                            self.tank_entities.remove(entity)
+                            try:
+                                self.tank_entities.remove(entity)
+                            except Exception:
+                                pass
                             self.tank_boss_defeated = True
                             self.puntuacion += 250
                     elif entity['kind'] == 'player':
-                        entity['health'] -= 1
+                        damage = bullet.get('damage', 1)
+                        if bullet.get('source_type') == 'boss':
+                            damage = entity.get('max_health', damage)
+                        entity['health'] -= damage
                         if entity['health'] <= 0:
                             self.juego_terminado = True
                             self.puntuacion = max(0, self.puntuacion - 50)
                         else:
                             self.tank_player = entity
                     else:
-                        entity['health'] -= 1
+                        # normal enemy takes damage equal to bullet.damage (default 1)
+                        damage = bullet.get('damage', 1)
+                        entity['health'] -= damage
                         if entity['health'] <= 0:
                             self.tank_handle_enemy_defeat(entity)
                         else:
                             self.puntuacion += 10
                     if bullet.get('owner') == 'player':
+                        # create a short-lived impact sprite so the hit is visible
                         self.tank_bullets.append({
                             'x': entity['x'],
                             'y': entity['y'],
@@ -895,13 +1014,15 @@ class Juego:
                             'owner': 'player',
                             'color': '#FF4D4D',
                             'shape': 'CIRCLE',
-                            'ttl': 1,
+                            'ttl': 2,
                         })
                     impactado = True
                     break
-                    break
             if impactado:
-                self.tank_bullets.remove(bullet)
+                try:
+                    self.tank_bullets.remove(bullet)
+                except Exception:
+                    pass
 
     def tank_check_target_score(self):
         if self.tipo_juego != 'BRICK_TANKS':
